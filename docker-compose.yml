@@ -1,0 +1,46 @@
+services:
+  lightning-mcp-server:
+    build:
+      context: .
+      dockerfile: unit-1/src/LightningMcpServer/Dockerfile
+    container_name: lightning-mcp-server
+    ports:
+      - "8020:8000"
+    env_file:
+      - .env
+    environment:
+      - LISTEN_PORT=8000
+      - ASPNETCORE_URLS=http://0.0.0.0:8000
+      - LIGHTNING_PULSE_API_BASE_URL=${LIGHTNING_PULSE_API_BASE_URL:-https://qa.lxneartime.api.enqa.co}
+      - LIGHTNING_PULSE_API_KEY=${LIGHTNING_PULSE_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  coordinator-agent:
+    build:
+      context: .
+      dockerfile: unit-2/src/CoordinatorAgent/Dockerfile
+    container_name: coordinator-agent
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - LISTEN_PORT=8001
+      - ASPNETCORE_URLS=http://0.0.0.0:8001
+      - MCP_SERVER_URL=http://lightning-mcp-server:8000
+    depends_on:
+      lightning-mcp-server:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

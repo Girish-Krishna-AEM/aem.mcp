@@ -1,0 +1,15 @@
+
+# AI-DLC (local-only for now -- remove to commit per upstream recommendation)
+/CLAUDE.md
+/.aidlc-rule-details/
+
+# Unit 3: Infrastructure Orchestration — environment variables (never commit actual secrets/values)
+/.env
+
+# .NET build artifacts
+bin/
+obj/
+
+# Claude Code local-machine settings (permissions etc. — not meant to be shared)
+.claude/settings.local.json
+

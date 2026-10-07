@@ -1,0 +1,11 @@
+# Exclude host build output from the Docker build context — these contain
+# machine-specific (Windows) paths in project.assets.json that break a Linux
+# container's restore/publish if copied in alongside source.
+**/bin/
+**/obj/
+
+# Local-only files
+.env
+aidlc-docs/
+.aidlc-rule-details/
+.git/

@@ -1,0 +1,92 @@
+<#
+.SYNOPSIS
+    Starts the Lightning MCP Server natively and opens MCP Inspector against it.
+
+.DESCRIPTION
+    Builds nothing new — just runs the already-built LightningMcpServer project
+    with `dotnet run`, waits for its /health endpoint, then launches the official
+    MCP Inspector (via npx) pointed at the server's spec-compliant /mcp endpoint.
+    When you close Inspector (Ctrl+C), the server is stopped automatically.
+
+.PARAMETER Port
+    Port to run the server on. Defaults to 8000. If that port is already in use
+    (e.g. by another process), the script automatically tries the next port up.
+
+.EXAMPLE
+    .\run-mcp-client-demo.ps1
+    .\run-mcp-client-demo.ps1 -Port 8020
+#>
+
+param(
+    [int]$Port = 8000
+)
+
+$ErrorActionPreference = "Stop"
+$serverDir = Join-Path $PSScriptRoot "unit-1\src\LightningMcpServer"
+$envFile = Join-Path $PSScriptRoot ".env"
+
+if (-not (Test-Path $serverDir)) {
+    Write-Error "Could not find LightningMcpServer project at: $serverDir"
+    exit 1
+}
+
+if (Test-Path $envFile) {
+    Write-Host "Loading environment variables from .env..." -ForegroundColor Cyan
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+)=(.*)$') {
+            $name = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            [System.Environment]::SetEnvironmentVariable($name, $value)
+        }
+    }
+} else {
+    Write-Warning ".env file not found at $envFile - server will run without LIGHTNING_PULSE_API_KEY and upstream API calls will fail with 403."
+}
+
+function Test-PortFree([int]$p) {
+    $inUse = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+    return -not $inUse
+}
+
+while (-not (Test-PortFree $Port)) {
+    Write-Host "Port $Port is already in use, trying $($Port + 1)..." -ForegroundColor Yellow
+    $Port++
+}
+
+Write-Host "Starting Lightning MCP Server on port $Port..." -ForegroundColor Cyan
+
+# Child processes inherit these from this script's own environment.
+$env:ASPNETCORE_URLS = "http://localhost:$Port"
+$env:LISTEN_PORT = "$Port"
+
+$serverProcess = Start-Process -FilePath "dotnet" `
+    -ArgumentList "run", "--environment", "Development" `
+    -WorkingDirectory $serverDir `
+    -PassThru -WindowStyle Normal
+
+try {
+    Write-Host "Waiting for server to become healthy..." -ForegroundColor Cyan
+    $ready = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        try {
+            $resp = Invoke-RestMethod -Uri "http://localhost:$Port/health" -TimeoutSec 2
+            if ($resp.status -eq "healthy") { $ready = $true; break }
+        } catch {}
+        Start-Sleep -Milliseconds 500
+    }
+
+    if (-not $ready) {
+        Write-Error "Server did not become healthy within 15 seconds. Check the server window for errors."
+        exit 1
+    }
+
+    Write-Host "Server is healthy at http://localhost:$Port" -ForegroundColor Green
+    Write-Host "Launching MCP Inspector against http://localhost:$Port/mcp ..." -ForegroundColor Cyan
+    Write-Host "(Inspector opens in your browser. Close it or press Ctrl+C here when done.)" -ForegroundColor DarkGray
+
+    npx @modelcontextprotocol/inspector@latest "http://localhost:$Port/mcp"
+}
+finally {
+    Write-Host "Stopping Lightning MCP Server (PID $($serverProcess.Id))..." -ForegroundColor Cyan
+    Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+}
