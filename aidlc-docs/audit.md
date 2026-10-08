@@ -769,3 +769,15 @@ All extension opt-in questions were explicitly confirmed by the user during this
 - **Status**: ✅ Fixed and verified (script logic + live URL resolution). Not yet re-run end-to-end on the actual EC2 instance — next step is for the user to re-run `deploy-ec2.sh` there.
 
 ---
+
+## 2026-10-08 — EC2 Deploy Fix: Buildx Check Silently Killed the Script (set -e/pipefail Trap)
+- **Timestamp**: 2026-10-08T04:15:00Z
+- **Stage**: Operations (EC2 deployment)
+- **User Input**: Re-ran the script after the previous buildx fix; output stopped dead right after `>>> Checking Docker Buildx plugin version...` with no error message.
+- **Root cause (bug #1)**: the version-extraction pipeline `docker buildx version 2>/dev/null | grep -oE ... | head -1 | sed ...` wasn't guarded by an `if`/`||`. Since `docker buildx` doesn't exist at all on this instance, that command fails, then `grep` also exits non-zero (no match on empty input) — under the script's `set -euo pipefail`, that silently killed the whole script at that exact line, with no visible error (confirmed by reproducing the exact trap in an isolated `bash -c` test, and confirming the fix with `|| true` resolves it).
+- **Root cause (bug #2, found during review, not yet hit live)**: the original fallback logic only checked that `docker buildx version` *ran* after the distro-package (`docker-buildx-plugin`) install attempt, not that it met the 0.17.0 requirement — so if AL2023's distro package installs an old buildx (plausible, matching Docker 25.0.14's vintage), the script would have wrongly accepted it and failed later anyway at the real `docker compose build` step.
+- **Fix**: added `|| true` after both risky pipelines (buildx version extraction, GitHub API tag extraction) to prevent `pipefail` from aborting the script on an expected/handled failure. Also refactored the whole Buildx section into `get_buildx_version`/`buildx_meets_requirement` helper functions and re-check the version *after* the distro-install attempt (not just existence), falling through to the binary download if the distro version is still too old.
+- **Verification**: `bash -n` syntax check; reproduced the exact `set -e`/`pipefail` silent-death trap in isolation (`false | grep | head | sed` with and without `|| true`) to confirm the mechanism and the fix; simulated both the "buildx missing entirely" and "distro installs an old 0.11.2" scenarios end-to-end with faked `docker`/`dnf`/`yum` functions — both now correctly fall through to the binary-download path instead of silently dying or wrongly accepting an old version.
+- **Status**: ✅ Fixed and verified via simulation; not yet re-run on the real EC2 instance — next step is for the user to `git pull` and re-run `deploy-ec2.sh` there.
+
+---

@@ -81,20 +81,34 @@ fi
 # first, then the official GitHub-release binary if that's missing/too old.
 log "Checking Docker Buildx plugin version..."
 REQUIRED_BUILDX="0.17.0"
-CURRENT_BUILDX="$(docker buildx version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')"
-BUILDX_OK=false
-if [[ -n "$CURRENT_BUILDX" ]]; then
-    HIGHEST="$(printf '%s\n%s\n' "$REQUIRED_BUILDX" "$CURRENT_BUILDX" | sort -V | tail -1)"
-    [[ "$HIGHEST" == "$CURRENT_BUILDX" ]] && BUILDX_OK=true
-fi
 
-if [[ "$BUILDX_OK" == "true" ]]; then
+get_buildx_version() {
+    docker buildx version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//' || true
+}
+
+buildx_meets_requirement() {
+    local current="$1"
+    [[ -z "$current" ]] && return 1
+    local highest
+    highest="$(printf '%s\n%s\n' "$REQUIRED_BUILDX" "$current" | sort -V | tail -1)"
+    [[ "$highest" == "$current" ]]
+}
+
+CURRENT_BUILDX="$(get_buildx_version)"
+if buildx_meets_requirement "$CURRENT_BUILDX"; then
     log "Docker Buildx already up to date (v$CURRENT_BUILDX)."
 else
     log "Docker Buildx missing or older than $REQUIRED_BUILDX (found: ${CURRENT_BUILDX:-none}) — trying distro package first..."
-    if ! (dnf install -y $DNF_SAFE_OPTS docker-buildx-plugin || yum install -y docker-buildx-plugin) \
-        || ! docker buildx version &>/dev/null; then
-        log "Distro package unavailable/still too old — installing the official binary directly..."
+    dnf install -y $DNF_SAFE_OPTS docker-buildx-plugin || yum install -y docker-buildx-plugin || true
+
+    # Re-check the actual version after the distro install, not just whether the
+    # command runs — AL2023's docker-buildx-plugin package can install successfully
+    # while still being below 0.17.0, which would otherwise be silently accepted.
+    CURRENT_BUILDX="$(get_buildx_version)"
+    if buildx_meets_requirement "$CURRENT_BUILDX"; then
+        log "Distro package provided Buildx v$CURRENT_BUILDX (meets requirement)."
+    else
+        log "Distro package unavailable or still below $REQUIRED_BUILDX (found: ${CURRENT_BUILDX:-none}) — installing the official binary directly..."
         BUILDX_PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
         mkdir -p "$BUILDX_PLUGIN_DIR"
         case "$(uname -m)" in
@@ -103,7 +117,7 @@ else
             *) BUILDX_ARCH="$(uname -m)" ;;
         esac
         BUILDX_TAG="$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
-            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
         if [[ -z "$BUILDX_TAG" ]]; then
             echo "Could not determine the latest Buildx release tag from the GitHub API. Aborting." >&2
             exit 1
@@ -114,8 +128,9 @@ else
     fi
 fi
 
-if ! docker buildx version &>/dev/null; then
-    echo "Docker Buildx plugin install failed — 'docker buildx version' still doesn't work. Aborting." >&2
+CURRENT_BUILDX="$(get_buildx_version)"
+if ! buildx_meets_requirement "$CURRENT_BUILDX"; then
+    echo "Docker Buildx plugin install failed or is still below $REQUIRED_BUILDX (found: ${CURRENT_BUILDX:-none}). Aborting." >&2
     exit 1
 fi
 
