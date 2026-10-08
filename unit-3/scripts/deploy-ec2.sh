@@ -24,13 +24,17 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-log "Updating system packages..."
-dnf update -y -q || yum update -y -q
+# No blanket `dnf/yum update` here — this instance is repurposed and may have
+# unrelated third-party repos (e.g. google-chrome) with broken/mismatched GPG
+# keys that would abort the whole script. Only the specific packages we need
+# are installed below, with that repo disabled defensively in case it's ever
+# hit during metadata refresh.
+DNF_SAFE_OPTS="--disablerepo=google-chrome"
 
 log "Checking Docker..."
 if ! command -v docker &>/dev/null; then
     log "Docker not found — installing..."
-    dnf install -y docker || yum install -y docker
+    dnf install -y $DNF_SAFE_OPTS docker || yum install -y docker
     systemctl enable --now docker
 else
     log "Docker already installed ($(docker --version))."
@@ -42,7 +46,7 @@ usermod -aG docker "$DEPLOY_USER" || true
 log "Checking Docker Compose plugin..."
 if ! docker compose version &>/dev/null; then
     log "Docker Compose plugin not found — installing..."
-    dnf install -y docker-compose-plugin || yum install -y docker-compose-plugin
+    dnf install -y $DNF_SAFE_OPTS docker-compose-plugin || yum install -y docker-compose-plugin
 else
     log "Docker Compose plugin already installed ($(docker compose version))."
 fi
@@ -50,7 +54,7 @@ fi
 log "Checking git..."
 if ! command -v git &>/dev/null; then
     log "git not found — installing..."
-    dnf install -y git || yum install -y git
+    dnf install -y $DNF_SAFE_OPTS git || yum install -y git
 fi
 
 log "Preparing $TARGET_DIR..."
