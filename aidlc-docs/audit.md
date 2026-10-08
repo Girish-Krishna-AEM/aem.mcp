@@ -758,3 +758,14 @@ All extension opt-in questions were explicitly confirmed by the user during this
 - **Status**: ✅ All three bugs fixed and fully live-verified end-to-end with the user's exact original query. Docker stack torn down after verification.
 
 ---
+
+## 2026-10-08 — EC2 Deploy Fix: `docker compose build` Requires Buildx 0.17.0+
+- **Timestamp**: 2026-10-08T04:00:00Z
+- **Stage**: Operations (EC2 deployment)
+- **User Input**: "compose build requires buildx 0.17.0 or later" (hit while running `deploy-ec2.sh` on the real Amazon Linux 2023 instance)
+- **Root cause**: AL2023's distro Docker package ships with no `buildx` plugin at all (or, via `docker-buildx-plugin`, a version well below 0.17.0). Modern `docker compose build` shells out to `buildx bake` and refuses to run below that version — confirmed this is the exact failure mode hit.
+- **Fix** (`unit-3/scripts/deploy-ec2.sh`): added a Buildx version check using the same idempotent pattern already proven for the Compose plugin fallback — try the distro package (`docker-buildx-plugin`) first; if that's missing or still below 0.17.0, download the official binary directly from `github.com/docker/buildx/releases/latest` (resolved via the GitHub API to avoid guessing a version number in the URL) into `/usr/local/lib/docker/cli-plugins/docker-buildx`.
+- **Verification**: syntax-checked the script (`bash -n`); unit-tested the version-comparison logic in isolation against missing/old/exact/newer versions (all correct); confirmed live against the real GitHub API that the tag extraction (`sed` on the JSON, no `jq` dependency) and the constructed download URL both resolve correctly (`302` to the real `buildx-v0.38.0.linux-amd64` asset).
+- **Status**: ✅ Fixed and verified (script logic + live URL resolution). Not yet re-run end-to-end on the actual EC2 instance — next step is for the user to re-run `deploy-ec2.sh` there.
+
+---

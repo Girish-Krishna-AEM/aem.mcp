@@ -73,6 +73,52 @@ if ! docker compose version &>/dev/null; then
     exit 1
 fi
 
+# `docker compose build` requires buildx >= 0.17.0 (it shells out to buildx bake).
+# Amazon Linux 2023's distro docker package ships with no buildx plugin at all (or
+# a very old one via docker-buildx-plugin), which fails with "compose build
+# requires buildx 0.17.0 or later" — confirmed hitting this on a fresh instance.
+# Same idempotent fallback pattern as the Compose plugin above: distro package
+# first, then the official GitHub-release binary if that's missing/too old.
+log "Checking Docker Buildx plugin version..."
+REQUIRED_BUILDX="0.17.0"
+CURRENT_BUILDX="$(docker buildx version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')"
+BUILDX_OK=false
+if [[ -n "$CURRENT_BUILDX" ]]; then
+    HIGHEST="$(printf '%s\n%s\n' "$REQUIRED_BUILDX" "$CURRENT_BUILDX" | sort -V | tail -1)"
+    [[ "$HIGHEST" == "$CURRENT_BUILDX" ]] && BUILDX_OK=true
+fi
+
+if [[ "$BUILDX_OK" == "true" ]]; then
+    log "Docker Buildx already up to date (v$CURRENT_BUILDX)."
+else
+    log "Docker Buildx missing or older than $REQUIRED_BUILDX (found: ${CURRENT_BUILDX:-none}) — trying distro package first..."
+    if ! (dnf install -y $DNF_SAFE_OPTS docker-buildx-plugin || yum install -y docker-buildx-plugin) \
+        || ! docker buildx version &>/dev/null; then
+        log "Distro package unavailable/still too old — installing the official binary directly..."
+        BUILDX_PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
+        mkdir -p "$BUILDX_PLUGIN_DIR"
+        case "$(uname -m)" in
+            x86_64) BUILDX_ARCH="amd64" ;;
+            aarch64) BUILDX_ARCH="arm64" ;;
+            *) BUILDX_ARCH="$(uname -m)" ;;
+        esac
+        BUILDX_TAG="$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+        if [[ -z "$BUILDX_TAG" ]]; then
+            echo "Could not determine the latest Buildx release tag from the GitHub API. Aborting." >&2
+            exit 1
+        fi
+        curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_TAG}/buildx-${BUILDX_TAG}.linux-${BUILDX_ARCH}" \
+            -o "$BUILDX_PLUGIN_DIR/docker-buildx"
+        chmod +x "$BUILDX_PLUGIN_DIR/docker-buildx"
+    fi
+fi
+
+if ! docker buildx version &>/dev/null; then
+    echo "Docker Buildx plugin install failed — 'docker buildx version' still doesn't work. Aborting." >&2
+    exit 1
+fi
+
 log "Checking git..."
 if ! command -v git &>/dev/null; then
     log "git not found — installing..."
