@@ -26,9 +26,18 @@ fi
 
 # No blanket `dnf/yum update` here — this instance is repurposed and may have
 # unrelated third-party repos (e.g. google-chrome) with broken/mismatched GPG
-# keys that would abort the whole script. Only the specific packages we need
-# are installed below, with that repo disabled defensively in case it's ever
-# hit during metadata refresh.
+# keys. `--disablerepo` on individual installs isn't reliably enough on its
+# own (dnf can still touch a repo during cache/metadata refresh), so disable
+# any known-broken repo permanently up front instead.
+BROKEN_REPOS="google-chrome"
+for repo in $BROKEN_REPOS; do
+    repofile="/etc/yum.repos.d/${repo}.repo"
+    if [[ -f "$repofile" ]] && grep -q "^enabled=1" "$repofile" 2>/dev/null; then
+        log "Disabling repo '$repo' (pre-existing on this instance, GPG key mismatch unrelated to this deploy)..."
+        dnf config-manager --set-disabled "$repo" 2>/dev/null || sed -i 's/^enabled=1/enabled=0/' "$repofile"
+    fi
+done
+
 DNF_SAFE_OPTS="--disablerepo=google-chrome"
 
 log "Checking Docker..."
