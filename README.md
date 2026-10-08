@@ -44,7 +44,7 @@ flowchart LR
 
     subgraph MCP["Lightning MCP Server  (Unit 1)"]
         direction TB
-        Tools["4️⃣ MCP Tools<br/>strikes · forecast · sensor · informer"]
+        Tools["4️⃣ MCP Tools<br/>strikes · daily/hourly/mock forecast · sensor · informer"]
     end
 
     User --> IC
@@ -80,8 +80,10 @@ This separation means the Lightning MCP Server could be reused by a completely d
 
 | Ask about... | Example query | What happens |
 |---|---|---|
-| ⚡ **Lightning strikes** | *"Get all the LX for Germantown MD around 50 miles"* | Resolves "Germantown MD" → lat/lon, returns strike count, CG/IC breakdown, nearest-strike distance |
-| 🌦️ **Weather forecast** | *"What's the 15-day forecast for Austin, TX?"* | Resolves location, returns a per-day forecast with a lightning-risk indicator |
+| ⚡ **Lightning strikes** | *"Get all the LX for Germantown MD around 50 miles"* | Resolves "Germantown MD" → lat/lon, returns strike count, CG/IC breakdown, nearest-strike distance. Also supports explicit date ranges (*"...between 2026-01-01 and 2026-01-05"*), relative windows (*"...in the last 3 hours"*, *"...yesterday"*), and a CG/IC filter (*"cloud-to-ground strikes near..."*) |
+| 🌦️ **Daily weather forecast** (real data) | *"What's the weather in Austin, TX?"* | Resolves location, calls the **real** external forecast API, returns per-day conditions (temp, humidity, precip chance, wind, etc.) |
+| ⏱️ **Hourly weather forecast** (real data) | *"Give me the hourly forecast for Urbana, MD"* | Resolves location, calls the **real** external forecast API, returns per-hour conditions (temp, dew point, wind gust, heat index, etc.) |
+| 🌦️ **15-day weather forecast** (stub data) | *"What's the 15-day forecast for Austin, TX?"* | Legacy stub path — returns a 15-entry synthetic forecast with a lightning-risk indicator. Kept for backward compatibility; see [Roadmap](#-roadmap) |
 | 📡 **Sensor diagnostics** | *"Show diagnostics for sensor-001"* | Returns detection efficiency, GPS lock, uptime, calibration date, overall health |
 | 🚨 **Warning device status** | *"Is the horn in zone-a powered on?"* | Returns device status, last activation, battery/power state |
 
@@ -93,7 +95,7 @@ This separation means the Lightning MCP Server could be reused by a completely d
 
 If a place name is ambiguous (e.g. just *"Springfield"* with no state) or can't be found at all, you get a clear error message instead of a silent wrong answer.
 
-> ⚠️ **Phase 1 uses stubbed domain data** (strikes, forecasts, sensor/device status are synthetic but realistic). The *location resolution* and *request routing* are real. See [Roadmap](#-roadmap).
+> ⚠️ **Sensor and warning-device data is still stubbed** (synthetic but realistic), as is the **15-day forecast** path. **Lightning strikes and daily/hourly weather forecasts now call real external APIs.** Location resolution and request routing are real throughout. See [Roadmap](#-roadmap).
 
 ---
 
@@ -162,7 +164,7 @@ For full deployment instructions (including EC2), see [`DEPLOYMENT.md`](./DEPLOY
 ```
 mcp/
 ├── unit-1/                      # Lightning MCP Server — the domain specialist
-│   ├── src/LightningMcpServer/  # 4 MCP tools, stub domain logic
+│   ├── src/LightningMcpServer/  # 6 MCP tools (strike/daily/hourly real; mock weather/sensor/informer stub)
 │   └── src/LightningCommon/     # Shared request/response models
 │
 ├── unit-2/                      # Coordinator Agent — the natural-language front door
@@ -218,6 +220,49 @@ sequenceDiagram
 
 ---
 
+## 🔌 How MCP tool wiring works
+
+The Lightning MCP Server exposes **6 MCP tools**. The Coordinator Agent doesn't hardcode one tool per intent — for the `Weather` intent specifically, it picks the tool dynamically based on the forecast type detected in the query:
+
+| MCP Tool | Data source | Called when... |
+|---|---|---|
+| `get_lightning_strikes_near_location` | Real (Lightning Pulse API) | Intent = Strike |
+| `get_daily_weather_forecast` | **Real** (external Daily Forecast API, by ZIP or lat/lon) | Intent = Weather, **default** (no forecast-type keyword, or "daily") |
+| `get_hourly_weather_forecast` | **Real** (external Hourly Forecast API, by lat/lon or free-text search) | Intent = Weather, query contains **"hourly"** |
+| `get_weather_forecast` | Stub (synthetic, kept for backward compatibility) | Intent = Weather, query contains **"15-day"** |
+| `get_sensor_diagnostics` | Stub | Intent = Sensor |
+| `get_informer_status` | Stub | Intent = Informer |
+
+This routing happens in `QueryController.ResolveWeatherToolName()` (unit-2) — it reads the `forecastType` parameter already extracted by `ParameterExtractor`, no separate classification pass needed. For the real Daily/Hourly tools, the Coordinator always resolves the query's location to lat/lon via the **same geocoder** used for strikes (`ILocationGeocoder`) before calling the tool — there's no separate geocoding path for weather. The Daily/Hourly tools also natively accept a ZIP code or free-text search string directly (bypassing the Coordinator's geocoder) for callers that already have that data.
+
+**Example requests and what they route to:**
+
+```bash
+# Daily (real data) — the default for a plain weather question
+curl -X POST http://localhost:8001/query -H "Content-Type: application/json" \
+  -d '{"query": "What is the weather in Austin, TX?"}'
+# → get_daily_weather_forecast, lat/lon resolved via geocoder
+
+# Hourly (real data) — triggered by the word "hourly"
+curl -X POST http://localhost:8001/query -H "Content-Type: application/json" \
+  -d '{"query": "Give me the hourly forecast for Urbana, MD"}'
+# → get_hourly_weather_forecast
+
+# 15-day (legacy stub) — triggered by "15-day"
+curl -X POST http://localhost:8001/query -H "Content-Type: application/json" \
+  -d '{"query": "Give me the 15-day forecast for Austin, TX"}'
+# → get_weather_forecast (stub)
+
+# Strike with an explicit date range and CG/IC filter
+curl -X POST http://localhost:8001/query -H "Content-Type: application/json" \
+  -d '{"query": "Cloud-to-ground strikes near Austin, TX from 2026-01-01 to 2026-01-05"}'
+# → get_lightning_strikes_near_location, pulseType=CG, startDateTime/endDateTime set
+```
+
+The real Daily/Hourly tools trim the external API's raw response down to the fields that matter (abbreviated but readable: `tempC`, `precipPct`, `windSpeedMs`, `cloudPct`, etc.) rather than returning every field the upstream API provides — see `unit-1/src/LightningCommon/DomainModels.cs` (`DailyForecastPeriod`, `HourlyForecastPeriod`) for the exact field list.
+
+---
+
 ## 🛠️ Configuration
 
 All configuration is via environment variables (see `.env.example` for the full, commented list). Nothing below is required to get started — every value has a working default.
@@ -228,6 +273,8 @@ All configuration is via environment variables (see `.env.example` for the full,
 | `LISTEN_PORT_MCP` / `LISTEN_PORT_COORDINATOR` | `8000` / `8001` | Internal container ports |
 | `MCP_SERVER_URL` | `http://lightning-mcp-server:8000` | How the Coordinator finds the MCP Server (Compose DNS) |
 | `LIGHTNING_PULSE_API_BASE_URL` / `LIGHTNING_PULSE_API_KEY` | QA endpoint / *(none)* | Real lightning-pulse data source for Unit 1 |
+| `WEATHER_FORECAST_API_BASE_URL` | *(none — required)* | Real weather forecast API base URL for `get_daily_weather_forecast` / `get_hourly_weather_forecast`. No API key needed. |
+| `WEATHER_FORECAST_DAILY_BY_ZIPCODE_PATH` / `..._DAILY_BY_LATLON_PATH` / `..._HOURLY_BY_LATLON_PATH` / `..._HOURLY_BY_SEARCH_PATH` | Matches the staging API's current routes | Endpoint paths for each forecast call shape — override only if the API's routes change |
 | `CENSUS_GEOCODER_BASE_URL` / `..._TIMEOUT_SECONDS` | Census's public URL / `10` | Primary geocoder (full addresses) |
 | `NOMINATIM_BASE_URL` / `..._TIMEOUT_SECONDS` / `..._USER_AGENT` | OSM's public URL / `10` / project name | Fallback geocoder (city/state, ZIP) |
 
@@ -238,10 +285,10 @@ All configuration is via environment variables (see `.env.example` for the full,
 ## 🧪 Testing
 
 ```bash
-# Unit 1 — Lightning MCP Server (38 tests)
+# Unit 1 — Lightning MCP Server (50 tests)
 dotnet test unit-1/tests/LightningMcpServer.Tests/LightningMcpServer.Tests.csproj
 
-# Unit 2 — Coordinator Agent (51 tests)
+# Unit 2 — Coordinator Agent (62 tests)
 dotnet test unit-2/tests/CoordinatorAgent.Tests/CoordinatorAgent.Tests.csproj
 ```
 
@@ -253,8 +300,8 @@ All external calls (MCP protocol, Census Geocoder, Nominatim) are mocked in the 
 
 | Phase | Status | Scope |
 |---|---|---|
-| **Phase 1** (this repo) | ✅ Complete | MCP Server + Coordinator Agent with real intent routing and **real, free location geocoding**; all domain data (strikes/forecast/sensors/devices) is realistic stub data; Docker Compose deployment |
-| **Phase 2** | 📋 Planned | Replace stub data with real integrations: live lightning-strike network, real weather provider, stateful sensor/device feeds; add conversation/session memory; basic authentication |
+| **Phase 1** (this repo) | ✅ Complete | MCP Server + Coordinator Agent with real intent routing and **real, free location geocoding**; lightning strikes and daily/hourly weather forecasts now call **real external APIs**; sensor/device status and the legacy 15-day forecast remain realistic stub data; Docker Compose deployment |
+| **Phase 2** | 📋 Planned | Replace remaining stub data with real integrations: stateful sensor/device feeds; add conversation/session memory; basic authentication |
 | **Phase 3** | 📋 Planned | Complete the reference architecture: edge layer (WAF/rate-limiting), PII redaction, observability/tracing, cost tracking, agent evaluation suite; potentially add more domain agents beyond lightning |
 
 See `aidlc-docs/inception/requirements/requirements.md` for full detail on what's in/out of scope for each phase.

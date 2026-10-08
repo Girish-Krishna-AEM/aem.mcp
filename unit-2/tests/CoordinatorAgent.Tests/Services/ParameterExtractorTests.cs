@@ -78,6 +78,99 @@ public class ParameterExtractorTests
         Assert.True(start < end);
     }
 
+    [Fact]
+    public async Task ExtractStrikeParameters_WithYesterday_SetsFullDayBeforeToday()
+    {
+        var (success, parameters, _) = await _extractor.ExtractParameters("Any lightning near Austin, TX yesterday?", Intent.Strike);
+
+        Assert.True(success);
+        var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
+        var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
+        Assert.True(start < end);
+        Assert.Equal(DateTime.UtcNow.Date.AddDays(-1), start);
+        Assert.Equal(DateTime.UtcNow.Date, end);
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithExplicitDateRange_ParsesStartAndEndDateTime()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning near Austin, TX from 2026-01-01 to 2026-01-05", Intent.Strike);
+
+        Assert.True(success);
+        Assert.Null(error);
+        var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
+        var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
+        Assert.Equal(new DateTime(2026, 1, 1), start);
+        Assert.Equal(new DateTime(2026, 1, 5), end);
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithExplicitDateTimeRangeUsingBetweenAnd_ParsesStartAndEndDateTime()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning near Austin, TX between 2026-01-01T08:00:00 and 2026-01-01T20:00:00", Intent.Strike);
+
+        Assert.True(success);
+        Assert.Null(error);
+        var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
+        var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
+        Assert.Equal(new DateTime(2026, 1, 1, 8, 0, 0), start);
+        Assert.Equal(new DateTime(2026, 1, 1, 20, 0, 0), end);
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithPointPrefixAndNoAndConnector_FailsToResolveLocation()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning between 2026-06-01T11:25:03 2026-06-08T10:35:02 for 150km Point:33.77304,-75.18979",
+            Intent.Strike);
+
+        // Documents current behavior: "Point:" isn't a recognized coordinate/location format,
+        // and "between X Y" without "and" doesn't match the explicit date-range pattern.
+        Assert.False(success);
+        Assert.NotNull(error);
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithLatLongKeywordsAndAndConnector_ResolvesCoordinatesRadiusAndDateRange()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning near latitude 33.77304, longitude -75.18979 within 150km between 2026-06-01T11:25:03 and 2026-06-08T10:35:02",
+            Intent.Strike);
+
+        Assert.True(success);
+        Assert.Null(error);
+        Assert.Equal(33.77304, parameters!.Value.GetProperty("latitude").GetDouble(), 4);
+        Assert.Equal(-75.18979, parameters.Value.GetProperty("longitude").GetDouble(), 4);
+        Assert.Equal(150, parameters.Value.GetProperty("radius").GetDouble());
+        Assert.Equal("km", parameters.Value.GetProperty("radiusUnit").GetString());
+        Assert.Equal(new DateTime(2026, 6, 1, 11, 25, 3), parameters.Value.GetProperty("startDateTime").GetDateTime());
+        Assert.Equal(new DateTime(2026, 6, 8, 10, 35, 2), parameters.Value.GetProperty("endDateTime").GetDateTime());
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithExplicitDateRangeStartAfterEnd_ReturnsValidationError()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning near Austin, TX from 2026-01-05 to 2026-01-01", Intent.Strike);
+
+        Assert.False(success);
+        Assert.Null(parameters);
+        Assert.Contains("start date/time must be before end date/time", error);
+    }
+
+    [Fact]
+    public async Task ExtractStrikeParameters_WithUnparseableExplicitDateRange_ReturnsValidationError()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Lightning near Austin, TX from 2026-13-40 to 2026-01-05", Intent.Strike);
+
+        Assert.False(success);
+        Assert.Null(parameters);
+        Assert.Contains("Could not parse date range", error);
+    }
+
     [Theory]
     [InlineData("cloud-to-ground strikes near Austin, TX", "CG")]
     [InlineData("CG strikes near Austin, TX", "CG")]
@@ -164,6 +257,15 @@ public class ParameterExtractorTests
 
         Assert.True(success);
         Assert.Equal("15-day", parameters!.Value.GetProperty("forecastType").GetString());
+    }
+
+    [Fact]
+    public async Task ExtractWeatherParameters_Hourly_ReturnsHourlyForecastType()
+    {
+        var (success, parameters, _) = await _extractor.ExtractParameters("Give me the hourly forecast for Dallas", Intent.Weather);
+
+        Assert.True(success);
+        Assert.Equal("hourly", parameters!.Value.GetProperty("forecastType").GetString());
     }
 
     [Fact]

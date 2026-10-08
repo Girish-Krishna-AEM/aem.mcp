@@ -13,6 +13,11 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:8000
       - LIGHTNING_PULSE_API_BASE_URL=${LIGHTNING_PULSE_API_BASE_URL:-https://qa.lxneartime.api.enqa.co}
       - LIGHTNING_PULSE_API_KEY=${LIGHTNING_PULSE_API_KEY}
+      - WEATHER_FORECAST_API_BASE_URL=${WEATHER_FORECAST_API_BASE_URL}
+      - WEATHER_FORECAST_DAILY_BY_ZIPCODE_PATH=${WEATHER_FORECAST_DAILY_BY_ZIPCODE_PATH:-Forecasts/v2/DailyForecast/ByZipCode}
+      - WEATHER_FORECAST_DAILY_BY_LATLON_PATH=${WEATHER_FORECAST_DAILY_BY_LATLON_PATH:-Forecasts/v2/DailyForecast/ByLatitudeAndLongitude}
+      - WEATHER_FORECAST_HOURLY_BY_LATLON_PATH=${WEATHER_FORECAST_HOURLY_BY_LATLON_PATH:-Forecasts/v1/HourlyForecast/ByLatitudeAndLongitude}
+      - WEATHER_FORECAST_HOURLY_BY_SEARCH_PATH=${WEATHER_FORECAST_HOURLY_BY_SEARCH_PATH:-Forecasts/v1/HourlyForecast/BySearch}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

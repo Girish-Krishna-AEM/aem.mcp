@@ -30,6 +30,9 @@ public class McpClient : IMcpClient
             }
         };
 
+        _logger.LogInformation(
+            "Sending MCP tool call for {ToolName}: {Request}", toolName, JsonSerializer.Serialize(request));
+
         using var response = await client.PostAsJsonAsync("/mcp/messages", request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -39,7 +42,10 @@ public class McpClient : IMcpClient
             throw new McpServerException((int)response.StatusCode, ExtractErrorMessage(body));
         }
 
-        var payload = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        _logger.LogInformation("Received MCP response for {ToolName}: {Response}", toolName, responseBody);
+
+        var payload = JsonSerializer.Deserialize<JsonElement>(responseBody);
         return payload.TryGetProperty("result", out var result) ? result : payload;
     }
 

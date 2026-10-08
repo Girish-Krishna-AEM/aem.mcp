@@ -66,6 +66,74 @@ public class CoordinatorIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Query_WeatherDefaultIntent_RoutesToRealDailyTool()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    latitude = 30.2672,
+                    longitude = -97.7431,
+                    periods = new[] { new { dateUtc = "2026-10-08T00:00:00Z", tempC = 22.5, precipPct = 10.0 } }
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "What's the weather in Austin, TX?" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("get_daily_weather_forecast", body.GetProperty("toolName").GetString());
+        Assert.Contains("22.5", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task Query_WeatherHourlyIntent_RoutesToRealHourlyTool()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    latitude = 30.2672,
+                    longitude = -97.7431,
+                    periods = new[] { new { dateUtc = "2026-10-08T01:00:00Z", tempC = 19.0, precipPct = 5.0 } }
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "hourly forecast for Austin, TX" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("get_hourly_weather_forecast", body.GetProperty("toolName").GetString());
+    }
+
+    [Fact]
+    public async Task Query_Weather15DayIntent_StillRoutesToMockTool()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    forecast = new[] { new { date = "2026-10-08", condition = "Sunny", temp = 25, precipitationPercent = 10, lightningRisk = 5 } }
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "Give me the 15-day forecast for Austin, TX" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("get_weather_forecast", body.GetProperty("toolName").GetString());
+    }
+
+    [Fact]
     public async Task Query_MissingLocation_ReturnsBadRequest()
     {
         var response = await _client!.PostAsJsonAsync("/query", new { query = "Is there lightning?" });

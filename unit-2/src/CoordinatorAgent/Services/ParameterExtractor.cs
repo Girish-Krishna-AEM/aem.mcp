@@ -23,6 +23,13 @@ public class ParameterExtractor : IParameterExtractor
         @"\b(?:last|past)\s+(\d+)\s*(minutes?|mins?|hours?|hrs?|days?)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex YesterdayPattern = new(
+        @"\byesterday\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ExplicitDateRangePattern = new(
+        @"\b(?:from|between)\s+(\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2})?)?)\s+(?:to|and)\s+(\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2})?)?)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex CloudToGroundPattern = new(
         @"\b(cloud[\s-]?to[\s-]?ground|cg)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -32,7 +39,7 @@ public class ParameterExtractor : IParameterExtractor
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex ForecastTypePattern = new(
-        @"\b(15[\s-]?day|daily)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        @"\b(15[\s-]?day|daily|hourly)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex SensorIdPattern = new(
         @"\b(sensor-[a-z0-9]+|[a-z]{2}-\d+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -46,7 +53,7 @@ public class ParameterExtractor : IParameterExtractor
     // Matches the free-text location phrase so it can be sent to the geocoder.
     // Captures "near/in/at/for <location>" up to a trailing qualifier (within/over/in the last, etc.) or end of string.
     private static readonly Regex LocationPhrasePattern = new(
-        @"\b(?:near|in|at|for)\s+([A-Za-z0-9][A-Za-z0-9.,'\-\s]*?)(?=\s*(?:within|over|around|in\s+the\s+last|in\s+the\s+past|\d+(?:\.\d+)?\s*(?:kilometers?|km|miles?|mi)\b|\?|$))",
+        @"\b(?:near|in|at|for)\s+([A-Za-z0-9][A-Za-z0-9.,'\-\s]*?)(?=\s*(?:within|over|around|in\s+the\s+last|in\s+the\s+past|yesterday\b|(?:from|between)\s+\d{4}-\d{2}-\d{2}|\d+(?:\.\d+)?\s*(?:kilometers?|km|miles?|mi)\b|\?|$))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly ILogger<ParameterExtractor> _logger;
@@ -87,7 +94,12 @@ public class ParameterExtractor : IParameterExtractor
             return (false, null, $"Radius of {radius} {radiusUnit} exceeds the maximum allowed radius of {MaxRadiusMiles} miles.");
         }
 
-        var (startDateTime, endDateTime) = TryExtractTimeWindow(query);
+        var (timeWindowSuccess, startDateTime, endDateTime, timeWindowError) = TryExtractTimeWindow(query);
+        if (!timeWindowSuccess)
+        {
+            return (false, null, timeWindowError);
+        }
+
         var pulseType = TryExtractPulseType(query);
 
         var parameters = new
@@ -113,9 +125,15 @@ public class ParameterExtractor : IParameterExtractor
         }
 
         var forecastMatch = ForecastTypePattern.Match(query);
-        var forecastType = forecastMatch.Success && forecastMatch.Value.Replace(" ", "").Replace("-", "").Equals("15day", StringComparison.OrdinalIgnoreCase)
-            ? "15-day"
+        var normalizedMatch = forecastMatch.Success
+            ? forecastMatch.Value.Replace(" ", "").Replace("-", "").ToLowerInvariant()
             : "daily";
+        var forecastType = normalizedMatch switch
+        {
+            "15day" => "15-day",
+            "hourly" => "hourly",
+            _ => "daily"
+        };
 
         var parameters = new
         {
@@ -221,12 +239,24 @@ public class ParameterExtractor : IParameterExtractor
         return (value, unit);
     }
 
-    private static (DateTime? StartDateTime, DateTime? EndDateTime) TryExtractTimeWindow(string query)
+    private static (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryExtractTimeWindow(string query)
     {
+        var explicitMatch = ExplicitDateRangePattern.Match(query);
+        if (explicitMatch.Success)
+        {
+            return TryParseExplicitDateRange(explicitMatch.Groups[1].Value, explicitMatch.Groups[2].Value);
+        }
+
+        if (YesterdayPattern.IsMatch(query))
+        {
+            var today = DateTime.UtcNow.Date;
+            return (true, today.AddDays(-1), today, null);
+        }
+
         var match = TimeWindowPattern.Match(query);
         if (!match.Success)
         {
-            return (null, null);
+            return (true, null, null, null);
         }
 
         var amount = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -239,7 +269,27 @@ public class ParameterExtractor : IParameterExtractor
                 ? end.AddHours(-amount)
                 : end.AddDays(-amount);
 
-        return (start, end);
+        return (true, start, end, null);
+    }
+
+    private static (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryParseExplicitDateRange(
+        string startText, string endText)
+    {
+        var parseStyles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+
+        if (!DateTime.TryParse(startText, CultureInfo.InvariantCulture, parseStyles, out var start) ||
+            !DateTime.TryParse(endText, CultureInfo.InvariantCulture, parseStyles, out var end))
+        {
+            return (false, null, null,
+                $"Could not parse date range '{startText}' to '{endText}'. Use an ISO format like '2026-01-01' or '2026-01-01T10:00:00'.");
+        }
+
+        if (start >= end)
+        {
+            return (false, null, null, "Invalid date range: start date/time must be before end date/time.");
+        }
+
+        return (true, start, end, null);
     }
 
     private static string? TryExtractPulseType(string query)

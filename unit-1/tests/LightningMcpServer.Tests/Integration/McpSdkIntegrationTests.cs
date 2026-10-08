@@ -58,14 +58,16 @@ public class McpSdkIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListTools_ReturnsAllFourTools()
+    public async Task ListTools_ReturnsAllSixTools()
     {
         var tools = await _mcpClient!.ListToolsAsync();
 
         var names = tools.Select(t => t.Name).ToList();
-        Assert.Equal(4, names.Count);
+        Assert.Equal(6, names.Count);
         Assert.Contains("get_lightning_strikes_near_location", names);
         Assert.Contains("get_weather_forecast", names);
+        Assert.Contains("get_daily_weather_forecast", names);
+        Assert.Contains("get_hourly_weather_forecast", names);
         Assert.Contains("get_sensor_diagnostics", names);
         Assert.Contains("get_informer_status", names);
     }

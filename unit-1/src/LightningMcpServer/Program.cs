@@ -51,6 +51,17 @@ builder.Services.Configure<LightningPulseApiOptions>(options =>
 });
 builder.Services.AddHttpClient<ILightningPulseApiClient, LightningPulseApiClient>();
 
+// Weather forecast external API configuration (base URL and all endpoint paths are configurable)
+builder.Services.Configure<WeatherForecastApiOptions>(options =>
+{
+    options.BaseUrl = builder.Configuration["WEATHER_FORECAST_API_BASE_URL"] ?? options.BaseUrl;
+    options.DailyByZipCodePath = builder.Configuration["WEATHER_FORECAST_DAILY_BY_ZIPCODE_PATH"] ?? options.DailyByZipCodePath;
+    options.DailyByLatLonPath = builder.Configuration["WEATHER_FORECAST_DAILY_BY_LATLON_PATH"] ?? options.DailyByLatLonPath;
+    options.HourlyByLatLonPath = builder.Configuration["WEATHER_FORECAST_HOURLY_BY_LATLON_PATH"] ?? options.HourlyByLatLonPath;
+    options.HourlyBySearchPath = builder.Configuration["WEATHER_FORECAST_HOURLY_BY_SEARCH_PATH"] ?? options.HourlyBySearchPath;
+});
+builder.Services.AddHttpClient<IWeatherForecastApiClient, WeatherForecastApiClient>();
+
 // Register domain modules
 builder.Services.AddScoped<IStrikeDetectionModule, StrikeDetectionModule>();
 builder.Services.AddScoped<IWeatherForecastModule, WeatherForecastModule>();

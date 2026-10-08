@@ -215,6 +215,67 @@ public class StrikeDetectionModuleTests
     }
 
     [Fact]
+    public void GetLightningStrikesNearLocation_WithStartAndEndDateTime_ForwardsExactDatesToApiClient()
+    {
+        var start = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 1, 1, 20, 0, 0, DateTimeKind.Utc);
+        SetupPulses(new PulseDto { Lat = 30.2672, Lon = -97.7431, Cur = 1.0, Typ = 0, Ts = DateTime.UtcNow });
+
+        var request = new GetLightningStrikesNearLocationRequest
+        {
+            Latitude = 30.2672,
+            Longitude = -97.7431,
+            Radius = 50,
+            RadiusUnit = "km",
+            StartDateTime = start,
+            EndDateTime = end
+        };
+
+        _module.GetLightningStrikesNearLocation(request);
+
+        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("CG", 0)]
+    [InlineData("CloudToGround", 0)]
+    [InlineData("IC", 1)]
+    [InlineData("IntraCloud", 1)]
+    public void GetLightningStrikesNearLocation_WithPulseTypeAndDateRange_ForwardsMappedTypeAndDatesToApiClient(
+        string pulseType, int expectedMappedType)
+    {
+        var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+        SetupPulses(new PulseDto { Lat = 30.2672, Lon = -97.7431, Cur = 1.0, Typ = expectedMappedType, Ts = DateTime.UtcNow });
+
+        var request = new GetLightningStrikesNearLocationRequest
+        {
+            Latitude = 30.2672,
+            Longitude = -97.7431,
+            Radius = 50,
+            RadiusUnit = "km",
+            StartDateTime = start,
+            EndDateTime = end,
+            PulseType = pulseType
+        };
+
+        _module.GetLightningStrikesNearLocation(request);
+
+        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, expectedMappedType, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void GetLightningStrikesNearLocation_WithNoDateRangeOrPulseType_ForwardsNullsToApiClient()
+    {
+        SetupPulses(new PulseDto { Lat = 30.2672, Lon = -97.7431, Cur = 1.0, Typ = 0, Ts = DateTime.UtcNow });
+
+        _module.GetLightningStrikesNearLocation(AustinRequest);
+
+        _apiClientMock.Verify(
+            c => c.GetPulsesAsync(null, null, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public void GetLightningStrikesNearLocation_WhenApiClientThrows_PropagatesException()
     {
         _apiClientMock

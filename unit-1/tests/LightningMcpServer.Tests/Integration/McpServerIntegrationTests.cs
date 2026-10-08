@@ -68,7 +68,7 @@ public class McpServerIntegrationTests : IAsyncLifetime
 
         Assert.True(json.RootElement.TryGetProperty("tools", out var tools));
         var toolArray = tools.EnumerateArray().ToList();
-        Assert.Equal(4, toolArray.Count);
+        Assert.Equal(6, toolArray.Count);
     }
 
     [Fact]

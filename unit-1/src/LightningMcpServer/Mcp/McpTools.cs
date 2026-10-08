@@ -48,6 +48,36 @@ public static class McpTools
         });
     }
 
+    [McpServerTool(Name = "get_daily_weather_forecast"), Description("Get the real daily weather forecast for a location, by ZIP code or latitude/longitude")]
+    public static GetDailyWeatherForecastResponse GetDailyWeatherForecast(
+        IWeatherForecastModule weatherModule,
+        [Description("US ZIP code. Provide this or latitude/longitude.")] string? zipCode = null,
+        [Description("Latitude of the location. Provide this (with longitude) or zipCode.")] double? latitude = null,
+        [Description("Longitude of the location. Provide this (with latitude) or zipCode.")] double? longitude = null)
+    {
+        return weatherModule.GetDailyWeatherForecast(new GetDailyWeatherForecastRequest
+        {
+            ZipCode = zipCode,
+            Latitude = latitude,
+            Longitude = longitude
+        });
+    }
+
+    [McpServerTool(Name = "get_hourly_weather_forecast"), Description("Get the real hourly weather forecast for a location, by latitude/longitude or a free-text location search")]
+    public static GetHourlyWeatherForecastResponse GetHourlyWeatherForecast(
+        IWeatherForecastModule weatherModule,
+        [Description("Latitude of the location. Provide this (with longitude) or searchString.")] double? latitude = null,
+        [Description("Longitude of the location. Provide this (with latitude) or searchString.")] double? longitude = null,
+        [Description("Free-text location search (e.g. 'Urbana, MD'). Provide this or latitude/longitude.")] string? searchString = null)
+    {
+        return weatherModule.GetHourlyWeatherForecast(new GetHourlyWeatherForecastRequest
+        {
+            Latitude = latitude,
+            Longitude = longitude,
+            SearchString = searchString
+        });
+    }
+
     [McpServerTool(Name = "get_sensor_diagnostics"), Description("Get diagnostics for a lightning detection sensor")]
     public static SensorDiagnostics GetSensorDiagnostics(
         ISensorDiagnosticsModule sensorModule,

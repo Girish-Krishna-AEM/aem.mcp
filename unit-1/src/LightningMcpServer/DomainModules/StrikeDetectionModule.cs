@@ -23,12 +23,18 @@ public class StrikeDetectionModule : IStrikeDetectionModule
         GetLightningStrikesNearLocationRequest request)
     {
         _logger.LogInformation(
-            "Strike detection requested: location=({Latitude},{Longitude}), radius={Radius} {RadiusUnit}",
-            request.Latitude, request.Longitude, request.Radius, request.RadiusUnit);
+            "Strike detection requested: location=({Latitude},{Longitude}), radius={Radius} {RadiusUnit}, " +
+            "startDateTime={StartDateTime}, endDateTime={EndDateTime}, pulseType={PulseType}, includeDetails={IncludeDetails}",
+            request.Latitude, request.Longitude, request.Radius, request.RadiusUnit,
+            request.StartDateTime, request.EndDateTime, request.PulseType, request.IncludeDetails);
 
         ValidateRequest(request);
 
         var pulseType = MapPulseType(request.PulseType);
+
+        _logger.LogInformation(
+            "Calling pulse API with startDateTime={StartDateTime}, endDateTime={EndDateTime}, mappedPulseType={MappedPulseType}",
+            request.StartDateTime, request.EndDateTime, pulseType);
 
         var apiResponse = _pulseApiClient
             .GetPulsesAsync(request.StartDateTime, request.EndDateTime, pulseType)

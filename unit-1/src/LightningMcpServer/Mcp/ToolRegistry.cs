@@ -79,6 +79,36 @@ public class ToolRegistry : IToolRegistry
             },
             new
             {
+                name = "get_daily_weather_forecast",
+                description = "Get the real daily weather forecast for a location, by ZIP code or latitude/longitude",
+                inputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        zipCode = new { type = "string", description = "US ZIP code. Provide this or latitude/longitude." },
+                        latitude = new { type = "number", description = "Latitude of the location. Provide this (with longitude) or zipCode." },
+                        longitude = new { type = "number", description = "Longitude of the location. Provide this (with latitude) or zipCode." }
+                    }
+                }
+            },
+            new
+            {
+                name = "get_hourly_weather_forecast",
+                description = "Get the real hourly weather forecast for a location, by latitude/longitude or a free-text location search",
+                inputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        latitude = new { type = "number", description = "Latitude of the location. Provide this (with longitude) or searchString." },
+                        longitude = new { type = "number", description = "Longitude of the location. Provide this (with latitude) or searchString." },
+                        searchString = new { type = "string", description = "Free-text location search (e.g. 'Urbana, MD'). Provide this or latitude/longitude." }
+                    }
+                }
+            },
+            new
+            {
                 name = "get_sensor_diagnostics",
                 description = "Get diagnostics for a lightning detection sensor",
                 inputSchema = new
@@ -121,6 +151,8 @@ public class ToolRegistry : IToolRegistry
             {
                 "get_lightning_strikes_near_location" => HandleStrikeDetection(arguments),
                 "get_weather_forecast" => HandleWeatherForecast(arguments),
+                "get_daily_weather_forecast" => HandleDailyWeatherForecast(arguments),
+                "get_hourly_weather_forecast" => HandleHourlyWeatherForecast(arguments),
                 "get_sensor_diagnostics" => HandleSensorDiagnostics(arguments),
                 "get_informer_status" => HandleInformerStatus(arguments),
                 _ => throw new ArgumentException($"Unknown tool: {toolName}")
@@ -165,6 +197,34 @@ public class ToolRegistry : IToolRegistry
         };
 
         var response = _weatherModule.GetWeatherForecast(request);
+        var json = JsonSerializer.Serialize(response, _jsonOptions);
+        return JsonDocument.Parse(json).RootElement;
+    }
+
+    private JsonElement HandleDailyWeatherForecast(JsonElement arguments)
+    {
+        var request = new GetDailyWeatherForecastRequest
+        {
+            ZipCode = arguments.TryGetProperty("zipCode", out var zc) ? zc.GetString() : null,
+            Latitude = arguments.TryGetProperty("latitude", out var lat) ? lat.GetDouble() : null,
+            Longitude = arguments.TryGetProperty("longitude", out var lon) ? lon.GetDouble() : null
+        };
+
+        var response = _weatherModule.GetDailyWeatherForecast(request);
+        var json = JsonSerializer.Serialize(response, _jsonOptions);
+        return JsonDocument.Parse(json).RootElement;
+    }
+
+    private JsonElement HandleHourlyWeatherForecast(JsonElement arguments)
+    {
+        var request = new GetHourlyWeatherForecastRequest
+        {
+            Latitude = arguments.TryGetProperty("latitude", out var lat) ? lat.GetDouble() : null,
+            Longitude = arguments.TryGetProperty("longitude", out var lon) ? lon.GetDouble() : null,
+            SearchString = arguments.TryGetProperty("searchString", out var ss) ? ss.GetString() : null
+        };
+
+        var response = _weatherModule.GetHourlyWeatherForecast(request);
         var json = JsonSerializer.Serialize(response, _jsonOptions);
         return JsonDocument.Parse(json).RootElement;
     }

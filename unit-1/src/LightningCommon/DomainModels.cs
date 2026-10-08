@@ -55,6 +55,75 @@ public class GetWeatherForecastResponse
     public List<WeatherForecastEntry> Forecast { get; set; } = new();
 }
 
+public class GetDailyWeatherForecastRequest
+{
+    public string? ZipCode { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+}
+
+public class DailyForecastPeriod
+{
+    public string DateUtc { get; set; } = string.Empty;
+    public bool Night { get; set; }
+    public double CloudPct { get; set; }
+    public double DewPointC { get; set; }
+    public double Humidity { get; set; }
+    public double TempC { get; set; }
+    public int PrecipCode { get; set; }
+    public double PrecipPct { get; set; }
+    public double StormPct { get; set; }
+    public int WindDir { get; set; }
+    public double WindSpeedMs { get; set; }
+    public double SnowMm { get; set; }
+}
+
+public class GetDailyWeatherForecastResponse
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public List<DailyForecastPeriod> Periods { get; set; } = new();
+}
+
+public class GetHourlyWeatherForecastRequest
+{
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? SearchString { get; set; }
+}
+
+public class HourlyForecastPeriod
+{
+    public string DateUtc { get; set; } = string.Empty;
+    public double CloudPct { get; set; }
+    public double DewPointC { get; set; }
+    public double Humidity { get; set; }
+    public double TempC { get; set; }
+    public int IconCode { get; set; }
+    public int PrecipCode { get; set; }
+    public double PrecipPct { get; set; }
+    public double PrecipRateMm { get; set; }
+    public double StormPct { get; set; }
+    public int WindDir { get; set; }
+    public double WindSpeedMs { get; set; }
+    public double AdjPrecipPct { get; set; }
+    public double SolarIrr { get; set; }
+    public double Pressure { get; set; }
+    public double SnowRate { get; set; }
+    public double WetBulbGlobeC { get; set; }
+    public double WetBulbC { get; set; }
+    public double WindGustMs { get; set; }
+    public double HeatIndexC { get; set; }
+    public double WindChillC { get; set; }
+}
+
+public class GetHourlyWeatherForecastResponse
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public List<HourlyForecastPeriod> Periods { get; set; } = new();
+}
+
 public class SensorDiagnostics
 {
     public double DetectionEfficiency { get; set; }

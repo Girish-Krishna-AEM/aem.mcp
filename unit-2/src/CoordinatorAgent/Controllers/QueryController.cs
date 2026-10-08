@@ -16,7 +16,6 @@ public class QueryController : ControllerBase
     private static readonly Dictionary<Intent, string> ToolNames = new()
     {
         [Intent.Strike] = "get_lightning_strikes_near_location",
-        [Intent.Weather] = "get_weather_forecast",
         [Intent.Sensor] = "get_sensor_diagnostics",
         [Intent.Informer] = "get_informer_status"
     };
@@ -46,7 +45,7 @@ public class QueryController : ControllerBase
             return BadRequest(new { error = "Query must not be empty." });
         }
 
-        _logger.LogInformation("Request received: {Query}", Truncate(request.Query));
+        _logger.LogInformation("Request received: {Query}", request.Query);
 
         var intent = _intentClassifier.Classify(request.Query);
         if (intent is null)
@@ -57,16 +56,22 @@ public class QueryController : ControllerBase
         var (success, parameters, error) = await _parameterExtractor.ExtractParameters(request.Query, intent.Value);
         if (!success || parameters is null)
         {
-            _logger.LogWarning("Parameters extracted: missing — {Error}", error);
+            _logger.LogWarning("Parameter extraction failed for query {Query}: {Error}", request.Query, error);
             return BadRequest(new { error });
         }
 
-        var toolName = ToolNames[intent.Value];
+        var toolName = intent.Value == Intent.Weather
+            ? ResolveWeatherToolName(parameters.Value)
+            : ToolNames[intent.Value];
+
+        _logger.LogInformation(
+            "Parameters extracted for tool {ToolName} from query {Query}: {Parameters}",
+            toolName, request.Query, parameters.Value.GetRawText());
 
         try
         {
             var result = await _mcpClient.CallToolAsync(toolName, parameters.Value, cancellationToken);
-            _logger.LogInformation("Response returned successfully for tool {ToolName}", toolName);
+            _logger.LogInformation("Response returned successfully for tool {ToolName}: {Result}", toolName, result.GetRawText());
             return Ok(ResultFormatter.Format(toolName, intent.Value, result));
         }
         catch (McpServerException ex) when (ex.StatusCode is >= 400 and < 500)
@@ -91,5 +96,16 @@ public class QueryController : ControllerBase
         }
     }
 
-    private static string Truncate(string value) => value.Length <= 100 ? value : value[..100] + "...";
+    /// <summary>Real daily/hourly forecast tools handle the common case; "15-day" still
+    /// routes to the original mock get_weather_forecast tool, which only supports that type.</summary>
+    private static string ResolveWeatherToolName(System.Text.Json.JsonElement parameters)
+    {
+        var forecastType = parameters.TryGetProperty("forecastType", out var ft) ? ft.GetString() : "daily";
+        return forecastType switch
+        {
+            "hourly" => "get_hourly_weather_forecast",
+            "15-day" => "get_weather_forecast",
+            _ => "get_daily_weather_forecast"
+        };
+    }
 }
