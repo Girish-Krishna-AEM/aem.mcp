@@ -54,10 +54,23 @@ usermod -aG docker "$DEPLOY_USER" || true
 
 log "Checking Docker Compose plugin..."
 if ! docker compose version &>/dev/null; then
-    log "Docker Compose plugin not found — installing..."
-    dnf install -y $DNF_SAFE_OPTS docker-compose-plugin || yum install -y docker-compose-plugin
+    log "Docker Compose plugin not found — trying distro package first..."
+    if ! (dnf install -y $DNF_SAFE_OPTS docker-compose-plugin || yum install -y docker-compose-plugin); then
+        log "Distro package unavailable (common on Amazon Linux 2023's default repos) — installing the official binary directly..."
+        COMPOSE_PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
+        mkdir -p "$COMPOSE_PLUGIN_DIR"
+        ARCH="$(uname -m)"
+        curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${ARCH}" \
+            -o "$COMPOSE_PLUGIN_DIR/docker-compose"
+        chmod +x "$COMPOSE_PLUGIN_DIR/docker-compose"
+    fi
 else
     log "Docker Compose plugin already installed ($(docker compose version))."
+fi
+
+if ! docker compose version &>/dev/null; then
+    echo "Docker Compose plugin install failed — 'docker compose version' still doesn't work. Aborting." >&2
+    exit 1
 fi
 
 log "Checking git..."
