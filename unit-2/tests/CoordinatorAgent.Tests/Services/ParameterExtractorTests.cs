@@ -12,7 +12,8 @@ public class ParameterExtractorTests
     {
         ["austin, tx"] = new GeocodeResult { Latitude = 30.2672, Longitude = -97.7431, MatchedAddress = "Austin, TX" },
         ["dallas"] = new GeocodeResult { Latitude = 32.7767, Longitude = -96.7970, MatchedAddress = "Dallas, TX" },
-        ["germantown md"] = new GeocodeResult { Latitude = 39.1732, Longitude = -77.2719, MatchedAddress = "Germantown, MD, 20874" }
+        ["germantown md"] = new GeocodeResult { Latitude = 39.1732, Longitude = -77.2719, MatchedAddress = "Germantown, MD, 20874" },
+        ["urbana, md"] = new GeocodeResult { Latitude = 39.3259, Longitude = -77.3514, MatchedAddress = "Urbana, MD, 21842" }
     };
 
     private static readonly TimeZoneInfo UserTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
@@ -278,6 +279,18 @@ public class ParameterExtractorTests
 
         Assert.True(success);
         Assert.Equal(39.1732, parameters!.Value.GetProperty("latitude").GetDouble(), 4);
+    }
+
+    [Theory]
+    [InlineData("Show me hourly forecast near Urbana, MD in details")]
+    [InlineData("Show me hourly forecast near Urbana, MD with details")]
+    public async Task ExtractWeatherParameters_WithTrailingInDetails_DoesNotSwallowPhraseIntoLocation(string query)
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(query, Intent.Weather);
+
+        Assert.True(success, error);
+        Assert.Equal(39.3259, parameters!.Value.GetProperty("latitude").GetDouble(), 4);
+        Assert.Equal("hourly", parameters.Value.GetProperty("forecastType").GetString());
     }
 
     [Fact]

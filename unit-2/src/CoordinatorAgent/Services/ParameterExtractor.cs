@@ -51,9 +51,12 @@ public class ParameterExtractor : IParameterExtractor
         @"\bzone[\s-]?[a-z0-9]+\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // Matches the free-text location phrase so it can be sent to the geocoder.
-    // Captures "near/in/at/for <location>" up to a trailing qualifier (within/over/in the last, etc.) or end of string.
+    // Captures "near/in/at/for <location>" up to a trailing qualifier (within/over/in the last,
+    // "in detail(s)", etc.) or end of string. "in detail(s)"/"with detail(s)" added 2026-10-08:
+    // without it, a query like "forecast near Urbana, MD in details" swallowed "in details" into
+    // the location text, breaking geocoding (geocoder error for "Urbana, MD in details").
     private static readonly Regex LocationPhrasePattern = new(
-        @"\b(?:near|in|at|for)\s+([A-Za-z0-9][A-Za-z0-9.,'\-\s]*?)(?=\s*(?:within|over|around|in\s+the\s+last|in\s+the\s+past|yesterday\b|(?:from|between)\s+\d{4}-\d{2}-\d{2}|\d+(?:\.\d+)?\s*(?:kilometers?|km|miles?|mi)\b|\?|$))",
+        @"\b(?:near|in|at|for)\s+([A-Za-z0-9][A-Za-z0-9.,'\-\s]*?)(?=\s*(?:within|over|around|in\s+the\s+last|in\s+the\s+past|yesterday\b|(?:from|between)\s+\d{4}-\d{2}-\d{2}|\d+(?:\.\d+)?\s*(?:kilometers?|km|miles?|mi)\b|(?:in|with)\s+detail(?:s)?\b|\?|$))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly ILogger<ParameterExtractor> _logger;

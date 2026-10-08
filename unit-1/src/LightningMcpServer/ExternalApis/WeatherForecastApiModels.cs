@@ -22,6 +22,9 @@ public class DailyForecastApiResponse : IForecastApiEnvelope
 
 public class DailyForecastApiResult
 {
+    [JsonPropertyName("ForecastCreatedUtcStr")]
+    public string? ForecastCreatedUtcStr { get; set; }
+
     [JsonPropertyName("Latitude")]
     public double Latitude { get; set; }
 
@@ -85,6 +88,9 @@ public class HourlyForecastApiResponse : IForecastApiEnvelope
 
 public class HourlyForecastApiResult
 {
+    [JsonPropertyName("ForecastCreatedUtcStr")]
+    public string? ForecastCreatedUtcStr { get; set; }
+
     [JsonPropertyName("Latitude")]
     public double Latitude { get; set; }
 

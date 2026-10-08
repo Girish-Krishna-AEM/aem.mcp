@@ -80,6 +80,7 @@ public class DailyForecastPeriod
 
 public class GetDailyWeatherForecastResponse
 {
+    public string ForecastCreatedUtc { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public List<DailyForecastPeriod> Periods { get; set; } = new();
@@ -119,6 +120,7 @@ public class HourlyForecastPeriod
 
 public class GetHourlyWeatherForecastResponse
 {
+    public string ForecastCreatedUtc { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public List<HourlyForecastPeriod> Periods { get; set; } = new();

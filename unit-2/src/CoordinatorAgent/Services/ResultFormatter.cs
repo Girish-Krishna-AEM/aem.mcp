@@ -49,7 +49,8 @@ public static class ResultFormatter
         // The original mock tool returns {forecast: [...]} — keep both shapes supported.
         if (result.TryGetProperty("periods", out var periods))
         {
-            return BuildRealForecastSummary(periods);
+            var forecastCreatedUtc = result.TryGetProperty("forecastCreatedUtc", out var fcu) ? fcu.GetString() : null;
+            return BuildRealForecastSummary(periods, forecastCreatedUtc);
         }
 
         var forecast = result.GetProperty("forecast");
@@ -67,7 +68,7 @@ public static class ResultFormatter
             : $"{entryCount}-day forecast starting with {condition}, {temp}°.";
     }
 
-    private static string BuildRealForecastSummary(JsonElement periods)
+    private static string BuildRealForecastSummary(JsonElement periods, string? forecastCreatedUtc)
     {
         var periodCount = periods.GetArrayLength();
         if (periodCount == 0)
@@ -78,9 +79,13 @@ public static class ResultFormatter
         var first = periods[0];
         var tempC = first.GetProperty("tempC").GetDouble();
         var precipPct = first.GetProperty("precipPct").GetDouble();
+        // Surfaces when the upstream provider generated this forecast (it refreshes periodically,
+        // not on every call) so two forecasts fetched minutes apart aren't mistaken for a bug when
+        // they differ — see 2026-10-08 audit entry for the incident this was added to resolve.
+        var asOf = string.IsNullOrEmpty(forecastCreatedUtc) ? string.Empty : $" (as of {forecastCreatedUtc})";
         return periodCount == 1
-            ? $"Forecast: {tempC:F1}°C, {precipPct:F0}% precip chance."
-            : $"{periodCount}-period forecast starting at {tempC:F1}°C, {precipPct:F0}% precip chance.";
+            ? $"Forecast: {tempC:F1}°C, {precipPct:F0}% precip chance.{asOf}"
+            : $"{periodCount}-period forecast starting at {tempC:F1}°C, {precipPct:F0}% precip chance.{asOf}";
     }
 
     private static string BuildSensorSummary(JsonElement result)

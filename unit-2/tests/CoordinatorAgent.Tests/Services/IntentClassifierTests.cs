@@ -15,6 +15,8 @@ public class IntentClassifierTests
     [InlineData("Get all the LX for Germantown MD around 50 miles", Intent.Strike)]
     [InlineData("What's the weather forecast for Houston?", Intent.Weather)]
     [InlineData("Will it rain tomorrow?", Intent.Weather)]
+    [InlineData("Show me hourly forecast near Urbana, MD in details", Intent.Weather)]
+    [InlineData("What's the weather forecast near Austin, TX?", Intent.Weather)]
     [InlineData("Show me sensor diagnostics for sensor-001", Intent.Sensor)]
     [InlineData("What's the calibration status of TX-123?", Intent.Sensor)]
     [InlineData("What is the status of informer-001?", Intent.Informer)]

@@ -86,6 +86,7 @@ public class WeatherForecastModule : IWeatherForecastModule
 
         return new GetDailyWeatherForecastResponse
         {
+            ForecastCreatedUtc = result.ForecastCreatedUtcStr ?? string.Empty,
             Latitude = result.Latitude,
             Longitude = result.Longitude,
             Periods = periods
@@ -111,6 +112,7 @@ public class WeatherForecastModule : IWeatherForecastModule
 
         return new GetHourlyWeatherForecastResponse
         {
+            ForecastCreatedUtc = result.ForecastCreatedUtcStr ?? string.Empty,
             Latitude = result.Latitude,
             Longitude = result.Longitude,
             Periods = periods
