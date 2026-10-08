@@ -781,3 +781,14 @@ All extension opt-in questions were explicitly confirmed by the user during this
 - **Status**: ✅ Fixed and verified via simulation; not yet re-run on the real EC2 instance — next step is for the user to `git pull` and re-run `deploy-ec2.sh` there.
 
 ---
+
+## 2026-10-08 — Operations Blocker: Public IP Assigned But Security Groups Block App Ports; IAM Denies Developer SG Changes
+- **Timestamp**: 2026-10-08T04:30:00Z
+- **Stage**: Operations (EC2 deployment — connectivity verification)
+- **User Input**: "assigned following public ip 54.91.14.149 - check it is reacable and working" → "can I access this via vpn?" → "Request both VPN range and my public IP"
+- **Investigation**: confirmed via `aws ec2 describe-instances` (profile `qa`) the instance is running with public IP `54.91.14.149` / private IP `10.8.20.224`, 3 attached security groups (`qa-ec2-allinstances` sg-06a49cdf3cec34f20, `qa-itops` sg-0c887d702cc15b2b8, `Girish-LLM-SG` sg-08ea9601520be2cd1). `Test-NetConnection` to ports 8020/8001 from this machine: both `False`. Inspected all 3 security groups' inbound rules via `aws ec2 describe-security-groups` — none allow 8020/8001 from any source (public IP, VPN range `192.168.60.0/22`, or otherwise); existing rules only cover 80/81-82/8080/22/3389/2878/445/18789, none matching this app's ports.
+- **Attempted fix**: `aws ec2 authorize-security-group-ingress --profile qa --group-id sg-08ea9601520be2cd1 ...` for TCP 8020/8001 from this machine's public IP (`69.251.56.226/32`, confirmed via `checkip.amazonaws.com`) — **failed**: `UnauthorizedOperation`, explicit IAM deny via policy `AEMDeniesDevelopers` on the assumed role `AWSReservedSSO_AEM-SoftwareDeveloper_...`. This is an intentional organizational guardrail (developers cannot modify security groups), not a gap — did not attempt to work around it via a different security group or any other path.
+- **Resolution drafted, not yet applied**: a consolidated inbound-rule request was prepared for whoever has the required permission (an admin, or the `qa-itops` team per the security group's naming) to apply to `Girish-LLM-SG` (sg-08ea9601520be2cd1): TCP 8020 and TCP 8001, each from both `192.168.60.0/22` (VPN range, matches the existing pattern already used for SSH/RDP on this instance) and `69.251.56.226/32` (this machine's current public IP, noted as possibly dynamic/needing reconfirmation before being applied).
+- **Status**: ⏳ Blocked — awaiting someone with IAM permission to apply the drafted security group rule. No code or infra changes made by this session beyond the (failed, reverted-by-AWS-itself since it never took effect) `authorize-security-group-ingress` attempt.
+
+---
