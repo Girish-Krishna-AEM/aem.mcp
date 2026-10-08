@@ -84,7 +84,11 @@ try {
     Write-Host "Launching MCP Inspector against http://localhost:$Port/mcp ..." -ForegroundColor Cyan
     Write-Host "(Inspector opens in your browser. Close it or press Ctrl+C here when done.)" -ForegroundColor DarkGray
 
-    npx @modelcontextprotocol/inspector@latest "http://localhost:$Port/mcp"
+    # The inspector package ships two bins (mcp-inspector, mcpdo) with none matching
+    # the package name, so npx can't auto-select one — the bin must be named explicitly.
+    # Likewise, newer inspector versions take the target via --transport/--server-url
+    # flags rather than a bare positional URL argument.
+    npx -p @modelcontextprotocol/inspector@latest mcp-inspector --transport http --server-url "http://localhost:$Port/mcp"
 }
 finally {
     Write-Host "Stopping Lightning MCP Server (PID $($serverProcess.Id))..." -ForegroundColor Cyan
