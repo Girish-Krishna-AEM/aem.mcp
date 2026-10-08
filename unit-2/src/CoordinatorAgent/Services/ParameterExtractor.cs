@@ -58,11 +58,13 @@ public class ParameterExtractor : IParameterExtractor
 
     private readonly ILogger<ParameterExtractor> _logger;
     private readonly ILocationGeocoder _locationGeocoder;
+    private readonly TimeZoneInfo _userTimeZone;
 
-    public ParameterExtractor(ILogger<ParameterExtractor> logger, ILocationGeocoder locationGeocoder)
+    public ParameterExtractor(ILogger<ParameterExtractor> logger, ILocationGeocoder locationGeocoder, TimeZoneInfo userTimeZone)
     {
         _logger = logger;
         _locationGeocoder = locationGeocoder;
+        _userTimeZone = userTimeZone;
     }
 
     public async Task<(bool Success, JsonElement? Parameters, string? Error)> ExtractParameters(string query, Intent intent)
@@ -239,7 +241,7 @@ public class ParameterExtractor : IParameterExtractor
         return (value, unit);
     }
 
-    private static (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryExtractTimeWindow(string query)
+    private (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryExtractTimeWindow(string query)
     {
         var explicitMatch = ExplicitDateRangePattern.Match(query);
         if (explicitMatch.Success)
@@ -249,8 +251,12 @@ public class ParameterExtractor : IParameterExtractor
 
         if (YesterdayPattern.IsMatch(query))
         {
-            var today = DateTime.UtcNow.Date;
-            return (true, today.AddDays(-1), today, null);
+            // "Yesterday" means the user's local calendar day, not UTC's — convert its
+            // local midnight-to-midnight boundaries to UTC for the downstream API.
+            var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _userTimeZone).Date;
+            var yesterdayStartUtc = TimeZoneInfo.ConvertTimeToUtc(todayLocal.AddDays(-1), _userTimeZone);
+            var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(todayLocal, _userTimeZone);
+            return (true, yesterdayStartUtc, todayStartUtc, null);
         }
 
         var match = TimeWindowPattern.Match(query);
@@ -272,17 +278,21 @@ public class ParameterExtractor : IParameterExtractor
         return (true, start, end, null);
     }
 
-    private static (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryParseExplicitDateRange(
+    private (bool Success, DateTime? StartDateTime, DateTime? EndDateTime, string? Error) TryParseExplicitDateRange(
         string startText, string endText)
     {
-        var parseStyles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
-
-        if (!DateTime.TryParse(startText, CultureInfo.InvariantCulture, parseStyles, out var start) ||
-            !DateTime.TryParse(endText, CultureInfo.InvariantCulture, parseStyles, out var end))
+        // The user's query never carries a timezone offset — the date/time they typed is
+        // always their own local wall-clock time, which must be converted to UTC before
+        // it's sent downstream (the Lightning Pulse API expects startDateTime/endDateTime in UTC).
+        if (!DateTime.TryParse(startText, CultureInfo.InvariantCulture, DateTimeStyles.None, out var startLocal) ||
+            !DateTime.TryParse(endText, CultureInfo.InvariantCulture, DateTimeStyles.None, out var endLocal))
         {
             return (false, null, null,
                 $"Could not parse date range '{startText}' to '{endText}'. Use an ISO format like '2026-01-01' or '2026-01-01T10:00:00'.");
         }
+
+        var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, _userTimeZone);
+        var end = TimeZoneInfo.ConvertTimeToUtc(endLocal, _userTimeZone);
 
         if (start >= end)
         {

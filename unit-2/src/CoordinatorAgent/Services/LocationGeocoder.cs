@@ -51,10 +51,12 @@ public class LocationGeocoder : ILocationGeocoder
 
         _logger.LogInformation("Geocode cache miss for '{LocationText}', calling Census Geocoder", locationText);
 
+        var censusQuery = $"locations/onelineaddress?address={Uri.EscapeDataString(locationText)}&benchmark=Public_AR_Current&format=json";
+        _logger.LogInformation(
+            "Calling Census Geocoder: {Method} {Url}", HttpMethod.Get, new Uri(_censusHttpClient.BaseAddress!, censusQuery));
+
         var censusMatches = await CallWithRetryAsync(
-            () => _censusHttpClient.GetFromJsonAsync<CensusGeocoderResponse>(
-                $"locations/onelineaddress?address={Uri.EscapeDataString(locationText)}&benchmark=Public_AR_Current&format=json",
-                cancellationToken),
+            () => _censusHttpClient.GetFromJsonAsync<CensusGeocoderResponse>(censusQuery, cancellationToken),
             response => response?.Result?.AddressMatches?.Select(m => (m.MatchedAddress, m.Coordinates.Y, m.Coordinates.X)).ToList()
                         ?? new List<(string, double, double)>(),
             locationText,
@@ -81,15 +83,16 @@ public class LocationGeocoder : ILocationGeocoder
     private async Task<GeocodeOutcome> GeocodeWithNominatimAsync(string locationText, CancellationToken cancellationToken)
     {
         var nominatimClient = _httpClientFactory.CreateClient(NominatimHttpClientName);
+        var nominatimQuery = $"search?q={Uri.EscapeDataString(locationText)}&format=json&limit=1&countrycodes=us";
+        _logger.LogInformation(
+            "Calling Nominatim: {Method} {Url}", HttpMethod.Get, new Uri(nominatimClient.BaseAddress!, nominatimQuery));
 
         var nominatimMatches = await CallWithRetryAsync(
             // limit=1: trust Nominatim's own relevance ranking (it already factors in place importance/population)
             // and take its top match directly, rather than surfacing same-state sub-localities (e.g. multiple
             // "Germantown, MD" neighborhoods) as a false-ambiguous prompt. Genuine ambiguity (e.g. a bare place
             // name matching different states) is resolved silently in Nominatim's favor of its top-ranked result.
-            () => nominatimClient.GetFromJsonAsync<List<NominatimMatch>>(
-                $"search?q={Uri.EscapeDataString(locationText)}&format=json&limit=1&countrycodes=us",
-                cancellationToken),
+            () => nominatimClient.GetFromJsonAsync<List<NominatimMatch>>(nominatimQuery, cancellationToken),
             response => response?.Select(m => (m.DisplayName, ParseDouble(m.Lat), ParseDouble(m.Lon))).ToList()
                         ?? new List<(string, double, double)>(),
             locationText,

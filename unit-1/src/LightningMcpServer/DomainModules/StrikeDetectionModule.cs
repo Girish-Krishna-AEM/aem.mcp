@@ -37,7 +37,9 @@ public class StrikeDetectionModule : IStrikeDetectionModule
             request.StartDateTime, request.EndDateTime, pulseType);
 
         var apiResponse = _pulseApiClient
-            .GetPulsesAsync(request.StartDateTime, request.EndDateTime, pulseType)
+            .GetPulsesAsync(
+                request.StartDateTime, request.EndDateTime, pulseType,
+                request.Latitude, request.Longitude, request.Radius, request.RadiusUnit)
             .GetAwaiter()
             .GetResult();
 

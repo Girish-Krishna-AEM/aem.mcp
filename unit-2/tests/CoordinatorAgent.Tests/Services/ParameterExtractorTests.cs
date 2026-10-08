@@ -15,6 +15,8 @@ public class ParameterExtractorTests
         ["germantown md"] = new GeocodeResult { Latitude = 39.1732, Longitude = -77.2719, MatchedAddress = "Germantown, MD, 20874" }
     };
 
+    private static readonly TimeZoneInfo UserTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+
     private readonly Mock<ILocationGeocoder> _geocoderMock;
     private readonly ParameterExtractor _extractor;
 
@@ -28,7 +30,7 @@ public class ParameterExtractorTests
                     ? GeocodeOutcome.Resolved(result)
                     : GeocodeOutcome.NotFound);
 
-        _extractor = new ParameterExtractor(NullLogger<ParameterExtractor>.Instance, _geocoderMock.Object);
+        _extractor = new ParameterExtractor(NullLogger<ParameterExtractor>.Instance, _geocoderMock.Object, UserTimeZone);
     }
 
     [Fact]
@@ -87,12 +89,13 @@ public class ParameterExtractorTests
         var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
         var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
         Assert.True(start < end);
-        Assert.Equal(DateTime.UtcNow.Date.AddDays(-1), start);
-        Assert.Equal(DateTime.UtcNow.Date, end);
+        var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, UserTimeZone).Date;
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(todayLocal.AddDays(-1), UserTimeZone), start);
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(todayLocal, UserTimeZone), end);
     }
 
     [Fact]
-    public async Task ExtractStrikeParameters_WithExplicitDateRange_ParsesStartAndEndDateTime()
+    public async Task ExtractStrikeParameters_WithExplicitDateRange_ParsesStartAndEndDateTimeConvertedFromLocalToUtc()
     {
         var (success, parameters, error) = await _extractor.ExtractParameters(
             "Lightning near Austin, TX from 2026-01-01 to 2026-01-05", Intent.Strike);
@@ -101,12 +104,12 @@ public class ParameterExtractorTests
         Assert.Null(error);
         var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
         var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
-        Assert.Equal(new DateTime(2026, 1, 1), start);
-        Assert.Equal(new DateTime(2026, 1, 5), end);
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 1, 1), UserTimeZone), start);
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 1, 5), UserTimeZone), end);
     }
 
     [Fact]
-    public async Task ExtractStrikeParameters_WithExplicitDateTimeRangeUsingBetweenAnd_ParsesStartAndEndDateTime()
+    public async Task ExtractStrikeParameters_WithExplicitDateTimeRangeUsingBetweenAnd_ParsesStartAndEndDateTimeConvertedFromLocalToUtc()
     {
         var (success, parameters, error) = await _extractor.ExtractParameters(
             "Lightning near Austin, TX between 2026-01-01T08:00:00 and 2026-01-01T20:00:00", Intent.Strike);
@@ -115,8 +118,8 @@ public class ParameterExtractorTests
         Assert.Null(error);
         var start = parameters!.Value.GetProperty("startDateTime").GetDateTime();
         var end = parameters.Value.GetProperty("endDateTime").GetDateTime();
-        Assert.Equal(new DateTime(2026, 1, 1, 8, 0, 0), start);
-        Assert.Equal(new DateTime(2026, 1, 1, 20, 0, 0), end);
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 1, 1, 8, 0, 0), UserTimeZone), start);
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 1, 1, 20, 0, 0), UserTimeZone), end);
     }
 
     [Fact]
@@ -145,8 +148,8 @@ public class ParameterExtractorTests
         Assert.Equal(-75.18979, parameters.Value.GetProperty("longitude").GetDouble(), 4);
         Assert.Equal(150, parameters.Value.GetProperty("radius").GetDouble());
         Assert.Equal("km", parameters.Value.GetProperty("radiusUnit").GetString());
-        Assert.Equal(new DateTime(2026, 6, 1, 11, 25, 3), parameters.Value.GetProperty("startDateTime").GetDateTime());
-        Assert.Equal(new DateTime(2026, 6, 8, 10, 35, 2), parameters.Value.GetProperty("endDateTime").GetDateTime());
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 6, 1, 11, 25, 3), UserTimeZone), parameters.Value.GetProperty("startDateTime").GetDateTime());
+        Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 6, 8, 10, 35, 2), UserTimeZone), parameters.Value.GetProperty("endDateTime").GetDateTime());
     }
 
     [Fact]

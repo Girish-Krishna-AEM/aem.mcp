@@ -48,6 +48,31 @@ function Test-PortFree([int]$p) {
     return -not $inUse
 }
 
+# Kills a process and its full descendant tree (e.g. `dotnet run`'s actual server child,
+# or Inspector's detached sandbox/app-origin child processes) — plain Stop-Process only
+# kills the single PID given, which leaves orphans that silently hold ports open.
+function Stop-ProcessTree([int]$Id) {
+    & taskkill /PID $Id /T /F *>$null
+}
+
+# Inspector's UI/sandbox/app-origin ports. If a previous run's process tree escaped
+# cleanup (observed in practice on Windows), these stay bound and every future run
+# falls back to unpredictable OS-assigned ports instead of failing loudly.
+$InspectorPorts = 6274, 6275, 6278
+
+function Clear-InspectorPorts {
+    foreach ($p in $InspectorPorts) {
+        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique |
+            ForEach-Object {
+                Write-Host "Clearing stale process on Inspector port $p (PID $_)..." -ForegroundColor Yellow
+                Stop-ProcessTree -Id $_
+            }
+    }
+}
+
+Clear-InspectorPorts
+
 while (-not (Test-PortFree $Port)) {
     Write-Host "Port $Port is already in use, trying $($Port + 1)..." -ForegroundColor Yellow
     $Port++
@@ -88,9 +113,26 @@ try {
     # the package name, so npx can't auto-select one — the bin must be named explicitly.
     # Likewise, newer inspector versions take the target via --transport/--server-url
     # flags rather than a bare positional URL argument.
-    npx -p @modelcontextprotocol/inspector@latest mcp-inspector --transport http --server-url "http://localhost:$Port/mcp"
+    # Run via Start-Process (not a direct call) so we keep the PID: npx/Inspector spawns
+    # detached sandbox/app-origin child processes that otherwise survive this script
+    # exiting and silently squat on ports 6274/6275/6278 for every future run.
+    # npx is a .cmd shim, not a Win32 exe — Start-Process -NoNewWindow can't launch it
+    # directly ("%1 is not a valid Win32 application"), so route it through cmd.exe /c.
+    $npxArgs = "npx -p @modelcontextprotocol/inspector@latest mcp-inspector --transport http --server-url http://localhost:$Port/mcp"
+    $inspectorProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $npxArgs -NoNewWindow -PassThru
+    Wait-Process -Id $inspectorProcess.Id
 }
 finally {
     Write-Host "Stopping Lightning MCP Server (PID $($serverProcess.Id))..." -ForegroundColor Cyan
-    Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+    Stop-ProcessTree -Id $serverProcess.Id
+
+    if ($inspectorProcess -and -not $inspectorProcess.HasExited) {
+        Write-Host "Stopping MCP Inspector (PID $($inspectorProcess.Id))..." -ForegroundColor Cyan
+        Stop-ProcessTree -Id $inspectorProcess.Id
+    }
+
+    # Belt-and-suspenders: catches detached Inspector child processes that escape the
+    # tree-kill above (the actual cause of the "port already in use" failures seen in
+    # past runs — this is what makes the next run predictable instead of a coin flip).
+    Clear-InspectorPorts
 }

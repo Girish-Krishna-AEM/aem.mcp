@@ -102,7 +102,7 @@ public class WeatherForecastModule : IWeatherForecastModule
 
         var apiResponse = request.Latitude.HasValue && request.Longitude.HasValue
             ? _weatherApiClient.GetHourlyForecastByLatLonAsync(request.Latitude.Value, request.Longitude.Value).GetAwaiter().GetResult()
-            : _weatherApiClient.GetHourlyForecastBySearchAsync(request.SearchString!).GetAwaiter().GetResult();
+            : GetHourlyForecastBySearchWithFallback(request.SearchString!);
 
         var result = apiResponse.Result ?? new HourlyForecastApiResult();
         var periods = result.HourlyForecastPeriods.Select(MapHourlyPeriod).ToList();
@@ -167,6 +167,45 @@ public class WeatherForecastModule : IWeatherForecastModule
         {
             throw new ArgumentException("Provide either zipCode or both latitude and longitude.");
         }
+    }
+
+    private HourlyForecastApiResponse GetHourlyForecastBySearchWithFallback(string searchString)
+    {
+        try
+        {
+            return _weatherApiClient.GetHourlyForecastBySearchAsync(searchString).GetAwaiter().GetResult();
+        }
+        catch (WeatherForecastApiException ex)
+        {
+            var fallback = TryDeriveCityStateFallback(searchString);
+            if (fallback is null)
+            {
+                throw;
+            }
+
+            _logger.LogWarning(
+                ex,
+                "Hourly forecast search failed for '{SearchString}'; retrying with city/state fallback '{Fallback}'",
+                searchString, fallback);
+
+            return _weatherApiClient.GetHourlyForecastBySearchAsync(fallback).GetAwaiter().GetResult();
+        }
+    }
+
+    // Narrows a full free-text search string (e.g. a street address) down to its
+    // trailing "City, State[ ZIP]" segment, since the upstream search endpoint has
+    // been observed to fail (Code 500) on full street addresses but succeed on
+    // city/state. Returns null when there's nothing narrower to try.
+    private static string? TryDeriveCityStateFallback(string searchString)
+    {
+        var parts = searchString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 3)
+        {
+            return null;
+        }
+
+        var fallback = string.Join(", ", parts[^2..]);
+        return string.Equals(fallback, searchString, StringComparison.OrdinalIgnoreCase) ? null : fallback;
     }
 
     private static void ValidateHourlyRequest(GetHourlyWeatherForecastRequest request)

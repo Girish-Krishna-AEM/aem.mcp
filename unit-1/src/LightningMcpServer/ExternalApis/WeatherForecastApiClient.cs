@@ -57,7 +57,7 @@ public class WeatherForecastApiClient : IWeatherForecastApiClient
         }
 
         var fullUrl = new Uri(_httpClient.BaseAddress, query);
-        _logger.LogInformation("Calling weather forecast API: GET {Url}", fullUrl);
+        _logger.LogInformation("Calling weather forecast API: {Method} {Url}", HttpMethod.Get, fullUrl);
 
         var stopwatch = Stopwatch.StartNew();
         HttpResponseMessage response;

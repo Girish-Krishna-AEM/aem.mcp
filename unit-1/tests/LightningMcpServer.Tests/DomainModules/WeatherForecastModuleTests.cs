@@ -258,4 +258,42 @@ public class WeatherForecastModuleTests
     {
         Assert.Throws<ArgumentException>(() => _module.GetHourlyWeatherForecast(new GetHourlyWeatherForecastRequest()));
     }
+
+    [Fact]
+    public void GetHourlyWeatherForecast_FullAddressSearchFails_FallsBackToCityState()
+    {
+        _apiClientMock
+            .Setup(c => c.GetHourlyForecastBySearchAsync("9872 Notting Hill Dr, Frederick, MD", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new WeatherForecastApiException("Weather forecast API returned error code 500: boom"));
+        _apiClientMock
+            .Setup(c => c.GetHourlyForecastBySearchAsync("Frederick, MD", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HourlyForecastApiResponse
+            {
+                Result = new HourlyForecastApiResult { Latitude = 39.4, Longitude = -77.4 }
+            });
+
+        var response = _module.GetHourlyWeatherForecast(new GetHourlyWeatherForecastRequest
+        {
+            SearchString = "9872 Notting Hill Dr, Frederick, MD"
+        });
+
+        Assert.Equal(39.4, response.Latitude);
+        _apiClientMock.Verify(c => c.GetHourlyForecastBySearchAsync("9872 Notting Hill Dr, Frederick, MD", It.IsAny<CancellationToken>()), Times.Once);
+        _apiClientMock.Verify(c => c.GetHourlyForecastBySearchAsync("Frederick, MD", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void GetHourlyWeatherForecast_CityStateSearchFails_ThrowsWithoutRetrying()
+    {
+        _apiClientMock
+            .Setup(c => c.GetHourlyForecastBySearchAsync("Frederick, MD", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new WeatherForecastApiException("Weather forecast API returned error code 500: boom"));
+
+        Assert.Throws<WeatherForecastApiException>(() => _module.GetHourlyWeatherForecast(new GetHourlyWeatherForecastRequest
+        {
+            SearchString = "Frederick, MD"
+        }));
+
+        _apiClientMock.Verify(c => c.GetHourlyForecastBySearchAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

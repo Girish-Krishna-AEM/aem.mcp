@@ -10,6 +10,10 @@ public class FakeLightningPulseApiClient : ILightningPulseApiClient
         DateTime? startDateTime,
         DateTime? endDateTime,
         int? pulseType,
+        double latitude,
+        double longitude,
+        double radius,
+        string radiusUnit,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(new PulsesApiResponse

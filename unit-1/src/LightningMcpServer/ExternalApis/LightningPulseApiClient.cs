@@ -33,13 +33,24 @@ public class LightningPulseApiClient : ILightningPulseApiClient
         DateTime? startDateTime,
         DateTime? endDateTime,
         int? pulseType,
+        double latitude,
+        double longitude,
+        double radius,
+        string radiusUnit,
         CancellationToken cancellationToken = default)
     {
         var end = endDateTime ?? DateTime.UtcNow;
         var start = startDateTime ?? end.AddMinutes(-5);
 
+        // "p" (point) and "radius" filter server-side instead of pulling every pulse
+        // globally for the time window and filtering client-side. The API rejects a bare
+        // numeric radius with no unit suffix — confirmed live against the real API
+        // ("radius is not valid." for "100", 200 OK for "100mi"/"100km").
+        var apiRadiusUnit = radiusUnit == "miles" ? "mi" : "km";
         var query = $"v1/pulses?startDateTime={start.ToString(DateTimeFormat, CultureInfo.InvariantCulture)}" +
-                     $"&endDateTime={end.ToString(DateTimeFormat, CultureInfo.InvariantCulture)}";
+                     $"&endDateTime={end.ToString(DateTimeFormat, CultureInfo.InvariantCulture)}" +
+                     $"&p={latitude.ToString(CultureInfo.InvariantCulture)},{longitude.ToString(CultureInfo.InvariantCulture)}" +
+                     $"&radius={radius.ToString(CultureInfo.InvariantCulture)}{apiRadiusUnit}";
 
         if (pulseType is not null)
         {

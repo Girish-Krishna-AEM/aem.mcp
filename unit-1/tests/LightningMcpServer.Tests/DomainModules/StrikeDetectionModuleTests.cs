@@ -40,7 +40,10 @@ public class StrikeDetectionModuleTests
     private void SetupPulses(params PulseDto[] pulses)
     {
         _apiClientMock
-            .Setup(c => c.GetPulsesAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetPulsesAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(),
+                It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PulsesApiResponse { Pulses = pulses.ToList() });
     }
 
@@ -150,7 +153,10 @@ public class StrikeDetectionModuleTests
     {
         // Real QA API returns "pulses": null (not []) when there are no records in range.
         _apiClientMock
-            .Setup(c => c.GetPulsesAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetPulsesAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(),
+                It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PulsesApiResponse { Code = 204, Pulses = null! });
 
         var response = _module.GetLightningStrikesNearLocation(AustinRequest);
@@ -233,7 +239,7 @@ public class StrikeDetectionModuleTests
 
         _module.GetLightningStrikesNearLocation(request);
 
-        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, null, It.IsAny<CancellationToken>()), Times.Once);
+        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, null, 30.2672, -97.7431, 50, "km", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
@@ -261,7 +267,7 @@ public class StrikeDetectionModuleTests
 
         _module.GetLightningStrikesNearLocation(request);
 
-        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, expectedMappedType, It.IsAny<CancellationToken>()), Times.Once);
+        _apiClientMock.Verify(c => c.GetPulsesAsync(start, end, expectedMappedType, 30.2672, -97.7431, 50, "km", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -272,14 +278,38 @@ public class StrikeDetectionModuleTests
         _module.GetLightningStrikesNearLocation(AustinRequest);
 
         _apiClientMock.Verify(
-            c => c.GetPulsesAsync(null, null, null, It.IsAny<CancellationToken>()), Times.Once);
+            c => c.GetPulsesAsync(null, null, null, 30.2672, -97.7431, 50, "km", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void GetLightningStrikesNearLocation_ForwardsLatitudeLongitudeRadiusAndUnitToApiClient()
+    {
+        SetupPulses(new PulseDto { Lat = 25.7907, Lon = -80.1300, Cur = 1.0, Typ = 0, Ts = DateTime.UtcNow });
+
+        var request = new GetLightningStrikesNearLocationRequest
+        {
+            Latitude = 25.7907,
+            Longitude = -80.1300,
+            Radius = 100,
+            RadiusUnit = "miles"
+        };
+
+        _module.GetLightningStrikesNearLocation(request);
+
+        _apiClientMock.Verify(
+            c => c.GetPulsesAsync(
+                null, null, null, 25.7907, -80.1300, 100, "miles", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public void GetLightningStrikesNearLocation_WhenApiClientThrows_PropagatesException()
     {
         _apiClientMock
-            .Setup(c => c.GetPulsesAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetPulsesAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int?>(),
+                It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .ThrowsAsync(new LightningPulseApiException("Lightning pulse API returned status 500 (InternalServerError)."));
 
         Assert.Throws<LightningPulseApiException>(() => _module.GetLightningStrikesNearLocation(AustinRequest));

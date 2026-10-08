@@ -44,6 +44,12 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // Register Coordinator services
 builder.Services.AddSingleton<IIntentClassifier, IntentClassifier>();
+
+// User queries always express date/times in the user's own local time (never UTC or an
+// explicit offset) — ParameterExtractor converts them to UTC using this timezone before
+// calling the Lightning Pulse API, which expects startDateTime/endDateTime in UTC.
+var userTimeZoneId = builder.Configuration["USER_TIME_ZONE_ID"] ?? "America/New_York";
+builder.Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById(userTimeZoneId));
 builder.Services.AddSingleton<IParameterExtractor, ParameterExtractor>();
 builder.Services.AddScoped<IMcpClient, McpClient>();
 

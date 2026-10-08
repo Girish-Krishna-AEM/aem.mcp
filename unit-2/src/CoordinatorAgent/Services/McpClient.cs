@@ -30,8 +30,10 @@ public class McpClient : IMcpClient
             }
         };
 
+        var requestUrl = client.BaseAddress is not null ? new Uri(client.BaseAddress, "/mcp/messages") : new Uri("/mcp/messages", UriKind.Relative);
         _logger.LogInformation(
-            "Sending MCP tool call for {ToolName}: {Request}", toolName, JsonSerializer.Serialize(request));
+            "Calling MCP Server: {Method} {Url} for tool {ToolName}, parameters={Request}",
+            HttpMethod.Post, requestUrl, toolName, JsonSerializer.Serialize(request));
 
         using var response = await client.PostAsJsonAsync("/mcp/messages", request, cancellationToken);
 
