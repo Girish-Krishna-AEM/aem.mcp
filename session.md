@@ -1,64 +1,64 @@
-# Session Handoff — 2026-10-08T03:15:00Z
+# Session Handoff — 2026-10-16T00:45:00Z
 
 ## Goal
-Deploy the Lightning Detection MCP stack (Docker Compose, 2 services) onto Girish's existing repurposed EC2 instance via `unit-3/scripts/deploy-ec2.sh`, iterating on the script as real-world install errors surface.
+Implement FR-6 (Informer Search & Alerting Service). Requirements + Workflow Planning approved; next step is Unit 1 (`LightningMcpServer`) Functional Design. Separately, EC2 Operations deployment connectivity appears resolved but root cause unconfirmed.
 
 ## Next actions (literal, copy-pasteable)
-1. On the instance, find which directory actually has the git clone: `ls -la ~/aem-mcp/.git 2>&1; ls -la /opt/lightning-mcp/.git 2>&1`
-2. `cd` into whichever one has `.git` (almost certainly `~/aem-mcp`, NOT `/opt/lightning-mcp` — that one errored with "fatal: not a git repository")
-3. `git pull origin main` — confirm it reports commit `18e4fa2` or later: `git log -1 --oneline unit-3/scripts/deploy-ec2.sh`
-4. `sudo ./unit-3/scripts/deploy-ec2.sh`
-5. Expect: google-chrome repo gets disabled (or skipped if already disabled from a prior run), docker already present, Compose plugin install falls back to downloading the official binary from GitHub releases into `/usr/local/lib/docker/cli-plugins/docker-compose` since `dnf install docker-compose-plugin` fails with "No match for argument" on this instance's repos
-6. If it completes: `curl http://localhost:8020/health` and `curl http://localhost:8001/health`, then a test query: `curl -X POST http://localhost:8001/query -H "Content-Type: application/json" -d '{"query": "Is there lightning near Austin, TX?"}'`
-7. Also test the real weather tools (expect likely 503/error if the internal staging weather API's `locations` dependency outage is still ongoing — not a deployment bug, see Risks below): `curl -X POST http://localhost:8001/query -H "Content-Type: application/json" -d '{"query": "What is the weather in Austin, TX?"}'`
+1. Resume AI-DLC: read `aidlc-docs/aidlc-state.md` and last 20 lines of `aidlc-docs/audit.md`.
+2. Load `.aidlc-rule-details/construction/functional-design.md` plus `aidlc-docs/inception/requirements/requirements.md` FR-6 section.
+3. Execute Unit 1 Functional Design for FR-6: define data models (search-match result, disambiguation candidate list, trimmed/grouped alert record) and business rules (fuzzy match on 4 fields, disabled-informer short-circuit, multi-match disambiguation, no-match/no-alerts messaging).
+4. Present the standardized 2-option completion message (Request Changes / Continue to Next Stage) per `functional-design.md` — do not use a 3-option menu.
+5. On approval, continue to Unit 1 NFR Requirements → NFR Design → Code Generation, then Unit 2 Functional Design → Code Generation, then Build and Test (see `aidlc-docs/inception/plans/execution-plan.md` Addendum: FR-6 for the full sequence).
 
 ## Context & Discovery
-- Instance found via `aws ec2 describe-instances --profile qa --filters "Name=private-ip-address,Values=10.8.20.224"`: `i-02f1106cb03f558e2`, tag `Name=Girish-LLM`, `en.Owner=girish`, key pair name `QA-POC`, AMI `al2023-ami-2023.5.20240916.0` (Amazon Linux 2023), VPC `vpc-2ba7ca42`.
-- Local `C:\Users\gkrishna\QA-POC.pem` does **not** match the AWS-registered fingerprint for key pair `QA-POC` (verified via `openssl pkcs8 ... | openssl md5` and SHA1-of-pubkey methods — neither matched `bf:c2:11:...`). SSH via that key fails with `Permission denied (publickey)`. Other candidate `.pem` files on disk (`girish-poc.pem`, `tln-load-test.pem`) also don't match.
-- Workaround: instance has SSM Agent registered and `PingStatus: Online` (`aws ssm describe-instance-information`) — used `aws ssm send-command` with `AWS-RunShellScript` document to run diagnostic commands without needing the right SSH key.
-- User prefers running the deploy script themselves on the instance (interactively, pasting output back) rather than me driving it fully via SSM — respect that; use SSM only for quick read-only diagnostics when explicitly needed, not for making changes, unless asked.
-- Two real-world install errors hit and fixed in the script (in order): (1) `google-chrome` repo on this repurposed instance has a GPG key mismatch, which aborted `dnf update`/any `dnf install` that refreshed its metadata — fixed by disabling that repo outright before any installs; (2) Amazon Linux 2023's default repos don't actually carry `docker-compose-plugin` (contrary to the originally-approved infra design doc's assumption of `yum install docker-compose-plugin`) — fixed by falling back to downloading the official `docker-compose` v2 binary from GitHub releases into `/usr/local/lib/docker/cli-plugins`.
-- Most recent blocker (not yet re-tested): user re-ran the script and got the *same old* dnf-compose error — diagnosed as stale code, not a real regression, because the log wording didn't match the latest script version. Then `sudo git pull origin main` from `/opt/lightning-mcp` failed with `fatal: not a git repository (or any of the parent directories): .git` — that directory isn't actually a git clone. The working clone is apparently at `~/aem-mcp` (seen in an earlier shell prompt `[ec2-user@ip-10-8-20-224 aem-mcp]$`) and needs the pull there instead.
+- User requested a real Informer search+alerts feature; existing `get_informer_status` MCP tool (`unit-1/src/LightningMcpServer/DomainModules/InformerStatusModule.cs`) was found to be fully randomized stub data, unrelated in shape to the new requirement.
+- Inspected `data/informer/informer_list.json` (520KB, many informers, several customers have multiple informers — duplicate-match risk) and `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json` (alerts nested under multiple named sites `r[].nm`, each with an `a[]` alert array with fields `atn`/`m`/5 UTC timestamp fields).
+- Checked `.env` for existing base-URL env var naming convention (`LIGHTNING_PULSE_API_BASE_URL`, `WEATHER_FORECAST_API_BASE_URL`) to match for new `INFORMER_API_BASE_URL`/`ALERTS_API_BASE_URL`.
+- Requirements gathered via a 9-question clarification file, then one follow-up clarification question (Q8 disabled-informer behavior was genuinely ambiguous between two code paths) — both fully answered.
+- Separately, discovered via `claude mcp list` that the `lightning-mcp` MCP server (`http://10.8.20.224:8020/mcp`, EC2 private IP) now shows Connected — a change from the 2026-10-08 audit log's "blocked by IAM-denied security-group change" state. User confirmed this is the correct live endpoint.
 
-## Files touched (this session, all committed & pushed to `origin/main`, repo: github.com/Girish-Krishna-AEM/aem.mcp)
-- `unit-3/scripts/deploy-ec2.sh` — created, then patched 3x: drop blanket `dnf/yum update`, permanently disable broken `google-chrome` repo before installs, fall back to official Compose binary when the distro package is missing + verify `docker compose version` actually works before continuing.
-- Earlier in this session (unrelated to current blocker, already shipped): real `get_daily_weather_forecast` / `get_hourly_weather_forecast` MCP tools backed by the internal staging forecast API (`unit-1/src/LightningMcpServer/ExternalApis/WeatherForecastApi*.cs`), Coordinator dynamic tool routing (`unit-2/.../QueryController.cs`), full request/response logging, `run-mcp-client-demo.ps1` MCP Inspector launch fix, `CLAUDE.md` + `.aidlc-rule-details/` now tracked in git, README overhaul.
+## Files touched
+- `aidlc-docs/aidlc-state.md` — current stage updated to Unit 1 Functional Design (FR-6); EC2 connectivity resolution noted; Stage Progress rows added for Unit 1/Unit 2 FR-6 tracking.
+- `aidlc-docs/audit.md` — appended: EC2 connectivity confirmation + `lightning-mcp-local` registration; FR-6 requirements request/questions/answers/clarification/approval; FR-6 Workflow Planning approval.
+- `aidlc-docs/inception/requirements/requirements.md` — added `FR-6: Informer Search & Alerting Service` section.
+- `aidlc-docs/inception/requirements/requirement-verification-questions.md` — 9 questions, all answered by user.
+- `aidlc-docs/inception/requirements/requirement-verification-clarification-questions.md` — new file, 1 follow-up question, answered.
+- `aidlc-docs/inception/plans/execution-plan.md` — added "Addendum: FR-6" section (phases to execute/skip, rationale, success criteria).
+- `data/informer/informer_list.json` — new, QA stub data for informer search (contains real colleague emails and `pasUserSecreteKey` GUIDs — committed as-is, see Decisions).
+- `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json` — new, QA stub alerts data.
+- `session.md` — this handoff.
 
 ## External Systems & Credentials
-- AWS account `434906109792`, profile `qa` (SSO via `aws sso login --profile qa`, session was expired once this session, refreshed successfully).
-- EC2 instance `i-02f1106cb03f558e2` / private IP `10.8.20.224` (no public IP — reachable from Girish's machine via VPN/corp network, confirmed via ping + port-22 TCP test).
-- Internal staging weather forecast API: `http://stg.en.ods.forecasts.web.enstg.co` — its `locations` sub-dependency has been intermittently/persistently returning `503 Service Temporarily Unavailable` throughout this session (confirmed as an upstream outage, not our bug, via direct `curl` showing `{"Code":500,"ErrorMessage":"...ServiceUnavailable..."}`).
-- GitHub repo: `github.com/Girish-Krishna-AEM/aem.mcp` (public). `.env` (with real `LIGHTNING_PULSE_API_KEY`) is gitignored, never committed.
+- EC2 instance `i-02f1106cb03f558e2`, public IP `54.91.14.149`, private IP `10.8.20.224` — `lightning-mcp` MCP server config now points at `http://10.8.20.224:8020/mcp` and connects successfully.
+- AWS profile `qa` — IAM-denied from modifying security groups (`AEMDeniesDevelopers` policy); drafted SG ingress rule (TCP 8020/8001, VPN range + public IP) still not confirmed as the thing that fixed connectivity.
+- Real endpoints for FR-6 (currently off-hours-unavailable, to be wired behind a `stub`/`live` config switch): `http://qa.oas.api.enqa.co/api/oas/Informer/v1/GetInformers`, `http://qa.alerts.api.enqa.co/api/alerts/v1/ByUserIdAndTimeRange`.
+- GitHub repo (public): `github.com/Girish-Krishna-AEM/aem.mcp`.
+- Local-only Claude Code MCP config (not in repo): second server `lightning-mcp-local` → `http://localhost:8020/mcp`, added this session for side-by-side EC2/local querying.
 
 ## Decisions
-- Use the official `docker-compose` v2 binary from GitHub releases as a fallback rather than adding Docker's official `download.docker.com` yum repo — avoids adding yet another third-party repo to an instance that already has one broken one.
-- Keep `--disablerepo=google-chrome` on individual installs *and* permanently disable the repo file up front (belt-and-suspenders) — the per-command flag alone wasn't reliably sufficient.
-- Script runs fully as root (`sudo ./deploy-ec2.sh`, checks `$EUID -ne 0`) rather than relying on docker-group membership propagating mid-script — simpler and avoids a re-login requirement.
+- FR-6 replaces `get_informer_status`'s tool contract entirely rather than adding a new tool name — prior contract was pure random stub with no real consumers.
+- `INFORMER_DATA_SOURCE`/`ALERTS_DATA_SOURCE` = `stub`|`live` is an explicit config switch per endpoint — no automatic fallback-on-failure between stub and live in production code paths.
+- Search matching is fuzzy/partial, case-insensitive, across all 4 fields (`custName`/`informName`/`macAddress`/`informId`).
+- Disabled informers always appear in search matches; if the one ultimately selected is disabled, skip the alerts call and report "disabled, not operational" instead.
+- Multi-match search results in a disambiguation pick-list shown to the user (reusing the FR-4 ambiguous-location pattern) — no auto-pick or auto-aggregate-all.
+- Alerts response stays grouped by site name (`r[].nm`), not flattened.
+- Per-alert response is trimmed to `atn`, `m`, and all 5 UTC timestamp fields (`actutc`/`issutc`/`exputc`/`acutc`/`lmutc`) — all other upstream fields dropped.
+- Unit 2 reuses its existing local→UTC time-range parsing as-is; no new NFRs introduced in Unit 2 for this feature (all new external-API NFRs live in Unit 1).
+- User Stories stage skipped for FR-6, consistent with the FR-4/FR-5 precedent (backend/internal feature) — user explicitly approved this.
+- Committed `data/informer/*` stub files as-is (unredacted) to the public repo — user explicitly confirmed this QA data (real emails, GUID-shaped secret keys) is acceptable to commit after being flagged.
 
 ## Assumptions (unverified)
-- The real git clone on the instance is at `~/aem-mcp` under the `ec2-user` home directory — inferred from a shell prompt, not directly confirmed with `pwd`/`git remote -v`.
-- `/opt/lightning-mcp` is empty/not a real clone — inferred from the `fatal: not a git repository` error; haven't confirmed whether it's fully empty or has partial stale content from an earlier aborted run.
-- Instance has outbound internet access to `github.com` (user confirmed this earlier for the git-clone approach generally) and to `github.com/docker/compose/releases` for the new binary-fallback step specifically — not yet verified for this exact URL.
-
-## Failing/blocked checks
-- `sudo git pull origin main` from `/opt/lightning-mcp` — exact error: `fatal: not a git repository (or any of the parent directories): .git` — last attempted fix: none yet, next action is to `cd` to the correct directory instead (see Next actions #1–2).
-- `dnf install -y docker-compose-plugin` on the instance — exact error: `No match for argument: docker-compose-plugin` / `Error: Unable to find a match: docker-compose-plugin` — fix already shipped (binary fallback in commit `18e4fa2`), not yet re-verified end-to-end on the instance.
-
-## Rejected approaches
-- SSH with local `.pem` files (`QA-POC.pem` and others found on disk) — none match the AWS-registered key pair fingerprint; would need the actual correct private key or an AWS key-pair reset to use SSH directly.
-- Driving the full deployment myself via `aws ssm send-command` — user wants to run the script themselves interactively and paste output back; I used SSM only for read-only diagnostics (checking docker/git presence, repo config) when explicitly useful, not for making changes.
+- The mechanism behind the EC2 connectivity fix (VPN routing to the private IP vs. an applied security-group rule) was not re-diagnosed — if it was VPN-dependent, disconnecting from VPN may break it again.
+- `pasUserSecreteKey` values in the stub data are assumed non-live/non-sensitive based on the user's confirmation, not independently verified against the real system.
 
 ## Environment
-- Local repo `C:\aem\ai-agentic\mcp`, branch `main`, clean working tree, fully in sync with `origin/main` at commit `18e4fa2`.
-- AWS CLI profile `qa` authenticated (SSO), account `434906109792`, region `us-east-1`.
+- Branch: `main`. Working tree had the FR-6 doc changes + new `data/` directory staged for commit at session end (see commit hash below once created).
+- `lightning-mcp-local` MCP server is registered in local Claude Code config but will show "Failed to connect" until a local `docker compose up` is run.
 
 ## Rollback point
-- GitHub `main` @ `18e4fa2` ("Fall back to the official Compose binary when the distro package is unavailable") — last known-good, pushed state of `deploy-ec2.sh`.
-
-## Open questions (blocked on user)
-- Confirm the actual path of the real git clone on the instance (likely `~/aem-mcp`) and re-run `git pull && sudo ./unit-3/scripts/deploy-ec2.sh` from there, then paste output.
+- Last commit before this session's changes: `abd911e` ("Log EC2 security-group connectivity blocker in AI-DLC docs"). This session's doc + stub-data changes were committed on top — see repo log for the new commit hash.
 
 ## Risks/watch-items
-- The internal staging weather API's `locations` dependency has been down for most of this session (confirmed outside business hours per user) — once the stack is up, the daily/hourly weather tools will likely still fail with a `503`/upstream-error until that recovers; this is expected and already has clear error surfacing, not a deployment defect.
-- This EC2 instance is a **repurposed** box with pre-existing unrelated state (the broken `google-chrome` repo, a running `timescaledb` container on port 5432, tag `QSConfigName-02fv2: QA Patching` suggesting scheduled OS patching via SSM Associations) — further unrelated surprises from prior uses of this instance are plausible; don't assume a clean POC environment.
-- `/opt/lightning-mcp` existing-but-not-a-git-repo is unexplained — worth a quick `ls -la /opt/lightning-mcp` to see what's actually in there before deciding whether to delete it or leave it alone.
+- `data/informer/informer_list.json` (520KB) now permanently contains real colleague emails and GUID-shaped secret keys in public repo history.
+- EC2 connectivity root cause unconfirmed — re-verify `claude mcp list` shows `lightning-mcp` Connected at the start of next session before relying on it.
+- FR-6 implementation (Unit 1 Functional Design onward) has not started — no code changes yet, only requirements/planning docs.

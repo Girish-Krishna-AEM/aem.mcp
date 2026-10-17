@@ -1,0 +1,263 @@
+{
+  "r": [
+    {
+      "id": "75016644-034a-4228-9800-15e389c2cb21",
+      "nm": "old Outer Radius",
+      "la": 35.0,
+      "lo": -77.0,
+      "a": [
+        {
+          "uaid": "50f28bd7-2b12-4ee9-a4c2-3f1c71ed6074",
+          "id": "CustomAlerts:LX-10-15-True-False+1792179761",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T19:42:41.418Z",
+          "issutc": "2026-10-16T19:42:41Z",
+          "isslocal": "2026-10-16T15:42:41-04:00",
+          "exputc": "2026-10-16T19:44:41.295Z",
+          "explocal": "2026-10-16T15:44:41.295-04:00",
+          "acutc": "2026-10-16T19:44:41.295Z",
+          "aclocal": "2026-10-16T15:44:41.295-04:00",
+          "lmutc": "2026-10-16T19:42:41.715Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 3:42 PM EDT 10/16/2026\r\nLightning Distance: TEST Miles\r\nStroke Location: Lat: TEST Lon: TEST\r\nType: TEST\r\nPeak Current: TEST\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualTestAlert",
+          "mam": {
+            "StatusText": "Under Test",
+            "DurationMinutes": 2,
+            "DeliverNotifications": true,
+            "UtilizeCountdownClock": true,
+            "PlaySound": false
+          }
+        },
+        {
+          "uaid": "a4235e56-d21f-4037-86a9-3779f5776be6",
+          "id": "CustomAlerts:LX-10-15-True-False+1792179453",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T19:37:36.687Z",
+          "issutc": "2026-10-16T19:37:33Z",
+          "isslocal": "2026-10-16T15:37:33-04:00",
+          "exputc": "2026-10-16T19:39:33.583Z",
+          "explocal": "2026-10-16T15:39:33.583-04:00",
+          "acutc": "2026-10-16T19:39:33.583Z",
+          "aclocal": "2026-10-16T15:39:33.583-04:00",
+          "lmutc": "2026-10-16T19:37:38.261Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 3:37 PM EDT 10/16/2026\r\nLightning Distance: TEST Miles\r\nStroke Location: Lat: TEST Lon: TEST\r\nType: TEST\r\nPeak Current: TEST\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualTestAlert",
+          "mam": {
+            "StatusText": "Under Test",
+            "DurationMinutes": 2,
+            "DeliverNotifications": true,
+            "UtilizeCountdownClock": true,
+            "PlaySound": true
+          }
+        },
+        {
+          "uaid": "f44ca5a3-badb-458a-8b9f-742f1004cfd9",
+          "id": "CustomAlerts:LX-10-15-True-False+1792178498",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T19:21:58.2483587Z",
+          "issutc": "2026-10-16T19:21:38Z",
+          "isslocal": "2026-10-16T15:21:38-04:00",
+          "exputc": "2026-10-16T19:36:38Z",
+          "explocal": "2026-10-16T15:36:38-04:00",
+          "acutc": "2026-10-16T19:36:38Z",
+          "aclocal": "2026-10-16T15:36:38-04:00",
+          "lmutc": "2026-10-16T19:36:38.7828932Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 3:21 PM EDT 10/16/2026\r\nLightning Distance: 0 Miles\r\nStroke Location: Lat: 35 Lon: -77\r\nType: IC\r\nPeak Current: 0 kA\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "AutomaticAlert"
+        },
+        {
+          "uaid": "ece042aa-1343-48e3-9713-291d487210b4",
+          "id": "CustomAlerts:LX-10-15-True-False+1792178226",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T19:17:10.408Z",
+          "issutc": "2026-10-16T19:17:06Z",
+          "isslocal": "2026-10-16T15:17:06-04:00",
+          "exputc": "2026-10-16T19:19:06.887Z",
+          "explocal": "2026-10-16T15:19:06.887-04:00",
+          "acutc": "2026-10-16T19:19:06.887Z",
+          "aclocal": "2026-10-16T15:19:06.887-04:00",
+          "lmutc": "2026-10-16T19:19:11.147Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 3:17 PM EDT 10/16/2026\r\nLightning Distance: TEST Miles\r\nStroke Location: Lat: TEST Lon: TEST\r\nType: TEST\r\nPeak Current: TEST\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualTestAlert",
+          "mam": {
+            "StatusText": "Under Test",
+            "DurationMinutes": 2,
+            "DeliverNotifications": true,
+            "UtilizeCountdownClock": true,
+            "PlaySound": true
+          }
+        },
+        {
+          "uaid": "b483b189-a269-4f7d-9846-cd57978c6e25",
+          "id": "CustomAlerts:LX-10-15-True-False+1792176856",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T18:54:16.257Z",
+          "issutc": "2026-10-16T18:54:16Z",
+          "isslocal": "2026-10-16T14:54:16-04:00",
+          "exputc": "2026-10-16T18:56:16.125Z",
+          "explocal": "2026-10-16T14:56:16.125-04:00",
+          "acutc": "2026-10-16T18:56:16.125Z",
+          "aclocal": "2026-10-16T14:56:16.125-04:00",
+          "lmutc": "2026-10-16T18:56:16.947Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 2:54 PM EDT 10/16/2026\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualAlert",
+          "mam": {
+            "DurationMinutes": 2
+          }
+        },
+        {
+          "uaid": "6331f890-f90b-468e-b293-f0b280be1d25",
+          "id": "CustomAlerts:LX-10-15-True-False+1792176675",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T18:51:18.766Z",
+          "issutc": "2026-10-16T18:51:15Z",
+          "isslocal": "2026-10-16T14:51:15-04:00",
+          "exputc": "2026-10-16T18:53:15.813Z",
+          "explocal": "2026-10-16T14:53:15.813-04:00",
+          "acutc": "2026-10-16T18:53:15.813Z",
+          "aclocal": "2026-10-16T14:53:15.813-04:00",
+          "lmutc": "2026-10-16T18:53:16.931Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 2:51 PM EDT 10/16/2026\r\nLightning Distance: TEST Miles\r\nStroke Location: Lat: TEST Lon: TEST\r\nType: TEST\r\nPeak Current: TEST\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualTestAlert",
+          "mam": {
+            "StatusText": "Under Test",
+            "DurationMinutes": 2,
+            "DeliverNotifications": true,
+            "UtilizeCountdownClock": true,
+            "PlaySound": true
+          }
+        },
+        {
+          "uaid": "364d5c7a-9292-4ed1-80b3-eea1f3e51c38",
+          "id": "CustomAlerts:LX-10-15-True-False+1792176271",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T18:44:34.128Z",
+          "issutc": "2026-10-16T18:44:31Z",
+          "isslocal": "2026-10-16T14:44:31-04:00",
+          "exputc": "2026-10-16T18:46:31.181Z",
+          "explocal": "2026-10-16T14:46:31.181-04:00",
+          "acutc": "2026-10-16T18:46:31.181Z",
+          "aclocal": "2026-10-16T14:46:31.181-04:00",
+          "lmutc": "2026-10-16T18:44:35.647Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 2:44 PM EDT 10/16/2026\r\nLightning Distance: TEST Miles\r\nStroke Location: Lat: TEST Lon: TEST\r\nType: TEST\r\nPeak Current: TEST\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualTestAlert",
+          "mam": {
+            "StatusText": "Under Test",
+            "DurationMinutes": 2,
+            "DeliverNotifications": true,
+            "UtilizeCountdownClock": true,
+            "PlaySound": true
+          }
+        },
+        {
+          "uaid": "9edcdcca-a176-4805-b4e8-cf1b0cb43521",
+          "id": "CustomAlerts:LX-10-15-True-False+1792175951",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T18:39:12.088Z",
+          "issutc": "2026-10-16T18:39:11Z",
+          "isslocal": "2026-10-16T14:39:11-04:00",
+          "exputc": "2026-10-16T18:41:11.894Z",
+          "explocal": "2026-10-16T14:41:11.894-04:00",
+          "acutc": "2026-10-16T18:41:11.894Z",
+          "aclocal": "2026-10-16T14:41:11.894-04:00",
+          "lmutc": "2026-10-16T18:41:12.742Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 2:39 PM EDT 10/16/2026\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "ManualAlert",
+          "mam": {
+            "DurationMinutes": 2
+          }
+        },
+        {
+          "uaid": "4c028ebf-c8b8-4917-b9cf-3b902ce44775",
+          "id": "CustomAlerts:LX-10-15-True-False+1792174913",
+          "apid": "CustomAlerts",
+          "actutc": "2026-10-16T18:22:14.7963307Z",
+          "issutc": "2026-10-16T18:21:53Z",
+          "isslocal": "2026-10-16T14:21:53-04:00",
+          "exputc": "2026-10-16T18:36:53Z",
+          "explocal": "2026-10-16T14:36:53-04:00",
+          "acutc": "2026-10-16T18:36:53Z",
+          "aclocal": "2026-10-16T14:36:53-04:00",
+          "lmutc": "2026-10-16T18:36:56.5577605Z",
+          "at": "LX",
+          "atn": "Lightning alert within 10mi 15min",
+          "m": "Site Name: old Outer Radius\r\nIssued: 2:21 PM EDT 10/16/2026\r\nLightning Distance: 0 Miles\r\nStroke Location: Lat: 35 Lon: -77\r\nType: IC\r\nPeak Current: 0 kA\r\n\r\nPlease do not reply to this email. This alert was delivered to you by Earth Networks upon your request. Please contact your administrator if you want to be removed from the list of recipients for alerts. For any other feedback please email us at:  customercare@earthnetworks.com\r\n",
+          "read": false,
+          "latest": true,
+          "uril": [
+            "50cd939a-2fed-4e25-986e-6ab0acb3f8ab"
+          ],
+          "uat": "Alert",
+          "trig": "AutomaticAlert"
+        }
+      ]
+    }
+  ],
+  "c": 200,
+  "e": null,
+  "i": "c78d97f9-86d3-47c2-b6b7-8748a455d7c8"
+}

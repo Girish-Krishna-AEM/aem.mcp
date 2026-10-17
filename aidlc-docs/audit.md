@@ -792,3 +792,66 @@ All extension opt-in questions were explicitly confirmed by the user during this
 - **Status**: ⏳ Blocked — awaiting someone with IAM permission to apply the drafted security group rule. No code or infra changes made by this session beyond the (failed, reverted-by-AWS-itself since it never took effect) `authorize-security-group-ingress` attempt.
 
 ---
+
+## 2026-10-16 — Operations: EC2 Connectivity Confirmed; Local MCP Server Added for Parallel Use
+**Timestamp**: 2026-10-16T00:00:00Z
+**Stage**: Operations (EC2 deployment — connectivity verification)
+**User Input**: "Can I run lightning_mcp connecting to ec2 instance and run locally parallel?" → "I confirm http://10.8.20.224:8020/mcp so update aidlc-state.md" → "claude mcp add lightning-mcp-local --transport http http://localhost:8020/mcp - How does the Query knows where the traffic will go ec2 or local machine?"
+**AI Response**: Observed via `claude mcp list` that the existing `lightning-mcp` MCP server entry (`http://10.8.20.224:8020/mcp`) now shows `✔ Connected`, a change from the 2026-10-08 blocked state. User confirmed this is the correct, live EC2 endpoint. Updated `aidlc-state.md` to reflect the resolved connectivity. Registered a second MCP server, `lightning-mcp-local` (`http://localhost:8020/mcp`), so a locally-run `docker compose up` stack can be queried in parallel with EC2 in the same session — routing between the two is static per tool namespace (`mcp__lightning-mcp__*` → EC2, `mcp__lightning-mcp-local__*` → localhost), fixed at `claude mcp add` time, not dynamic/content-based.
+**Context**: Operations phase, EC2 deployment. No application code changed. Root cause of the prior SG/IAM block not re-diagnosed — flagged as outstanding in aidlc-state.md.
+
+---
+
+## 2026-10-16 — New Feature Request: Informer Alerting/Search Service — Re-entering INCEPTION (Requirements Analysis)
+**Timestamp**: 2026-10-16T00:10:00Z
+**Stage**: Inception — Requirements Analysis (re-opened)
+**User Input**: "Ignore this for now, since it is not relevant for this implemenation\nI have new requirement for the Informers related service. Here is my requirements\n1) User wants to know the Informer(what is Informer is a alerting device), get alerted when there potenial lighting\n2) User should be able to search the informer by any of these CustomerName/Name(inforName)/macAddress/informId [Refer the data file data/informer/informer_list.json] - I am using the stub data because http://qa.oas.api.enqa.co/api/oas/Informer/v1/GetInformers is not working during off business hours; make sure url is configurable to get all the informers and cached with ttl for 1 hour\n3)based on search grab the \"pasUserId\" value and call the following url - Currently not available because off business hours for now you can following stub data data/informer salesforce_oas_0014000000gGR2bAAG.2050.json\nhttp://qa.alerts.api.enqa.co/api/alerts/v1/ByUserIdAndTimeRange?/ByUserIdAndTimeRange&startDateTimeUtc=1792152000&enddatetimeutc=1792180200&compact=true&includeUserAuditEvents=true&userId=salesforce_oas_0014000000gGR2bAAG.2050\nStub data\nurl should be configurable;startDateTime and endDateTime is in utc epoch;\nSample Prompt may look like Give the status of the informer <customerName> between <startdatetime> and <enddatetime> or last 1 day; yesterday; last 10 days; or any pattern and will be local time\nBe very efficent in sending the data back in highly efficent look for all the utc dates; message; atn for now\nI may other additional URLs that will be provided later on as we go scope of expansion.\nReview the requirements and let me know if you have any questions"
+**AI Response**: Classified as New Feature, Multiple Components (Unit 1 + Unit 2), Moderate-to-Complex (new external API integrations, caching, NL time-range parsing reuse, disambiguation needed for search). Inspected `data/informer/informer_list.json` (large array, fields include custId/informId/macAddress/informName/pasUserId/custName/isDisabled/lat/lon/etc.) and `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json` (alerts response shape: `r[].a[]` with fields `atn`, `m`, `actutc`/`issutc`/`exputc`/`acutc`/`lmutc`, `read`, etc.). Checked existing `unit-1/src/LightningMcpServer/DomainModules/InformerStatusModule.cs` — currently a fully-random stub (`get_informer_status` tool) unrelated in data shape to this new real requirement. Checked `.env` for existing base-URL config naming convention (`LIGHTNING_PULSE_API_BASE_URL`, `WEATHER_FORECAST_API_BASE_URL`). Created `aidlc-docs/inception/requirements/requirement-verification-questions.md` per the MANDATORY question-format-guide (multiple-choice, "Other" option, [Answer]: tags) to resolve ambiguities before drafting `requirements.md`: disambiguation behavior on multi-match search, scope of existing `get_informer_status` tool vs. new tool, stub-vs-real-endpoint switching mechanism, which UTC fields to return, time-range parsing reuse, and multi-site alert aggregation.
+**Context**: Inception phase, Requirements Analysis stage (re-opened, same pattern as prior FR-4/FR-5 addenda). Gate: awaiting user answers in requirement-verification-questions.md before proceeding to Step 7 (requirements.md generation).
+
+---
+
+## 2026-10-16 — Informer Requirements: Answers Reviewed, One Ambiguity Found (Q8)
+**Timestamp**: 2026-10-16T00:20:00Z
+**Stage**: Inception — Requirements Analysis (re-opened)
+**User Input**: "Done, answered all 9 questions" (full answers recorded in `requirement-verification-questions.md`: Q1=C config-switch `INFORMER_DATA_SOURCE=stub|live`; Q2=C fuzzy/partial match all text fields; Q3=D, "provide way to pick the selection of available informers; since Question is fuzzy search" i.e. disambiguation pick-list, same intent as original option A; Q4=A replace `get_informer_status`; Q5=D, "Since Informer status has changed over the period time - Maybe B would be good option" i.e. group alerts by site name; Q6=A all five UTC fields + atn + m; Q7=A reuse existing `ParameterExtractor` time-parsing; Q8=C, "if the prompt asked for disabled; Response can be it is disabled and not operateable" (ambiguous — two possible interpretations); Q9=B suggest close matches on no-match).
+**AI Response**: Analyzed all 9 answers for contradictions/ambiguities per question-format-guide.md. Q3/Q5 "Other" answers resolve unambiguously to the stated option (A and B respectively) with added rationale — no follow-up needed. Q8's answer is genuinely ambiguous between "exclude disabled by default unless asked" vs. "always include disabled in matches, but short-circuit alert lookup when disabled" — these produce different search-matching code paths. Created `aidlc-docs/inception/requirements/requirement-verification-clarification-questions.md` with one targeted clarification question to resolve this before drafting requirements.md.
+**Context**: Gate still open — awaiting clarification answer before Step 7 (requirements.md generation).
+
+---
+
+## 2026-10-16 — Informer Requirements Finalized (FR-6 added to requirements.md)
+**Timestamp**: 2026-10-16T00:30:00Z
+**Stage**: Inception — Requirements Analysis (re-opened)
+**User Input**: "clarified" (Clarification Q1 answer: B — always include disabled informers in search matches, but skip the alerts call and report "disabled, not operational" when the matched informer is disabled)
+**AI Response**: All ambiguities resolved. Added `FR-6: Informer Search & Alerting Service` to `aidlc-docs/inception/requirements/requirements.md`, incorporating all 9 original answers + the clarification: `INFORMER_DATA_SOURCE=stub|live` explicit config switch per endpoint (no auto-failover); fuzzy/partial match on `custName`/`informName`/`macAddress`/`informId`; disabled informers always match, but alerts lookup is skipped and "disabled, not operational" is reported instead; ambiguous multi-match → disambiguation pick-list (reusing FR-4's pattern), no auto-pick/auto-aggregate; `get_informer_status` tool name/contract is replaced (not a new tool) per Q4=A; alerts response grouped by site name (`r[].nm`) per Q5=B; per-alert fields trimmed to `atn`/`m`/all 5 UTC fields per Q6=A; Unit 2 reuses its existing FR-1.1 local→UTC time-range parsing convention per Q7=A; no-match/no-alerts responses are plain-language with close-match suggestions per Q9=B. Updated `aidlc-state.md` with an FR-6 addendum summary.
+**Context**: Requirements Analysis (FR-6) content complete. Gate: awaiting user's explicit approval of `requirements.md` before proceeding to Workflow Planning to determine which CONSTRUCTION stages are re-entered.
+
+---
+
+## 2026-10-16 — FR-6 Requirements Approved
+**Timestamp**: 2026-10-16T00:35:00Z
+**Stage**: Inception — Requirements Analysis (re-opened) → Workflow Planning
+**User Input**: "Approve & continue to Workflow Planning"
+**AI Response**: Requirements Analysis (FR-6, Informer Search & Alerting Service) approved as-is, including skipping User Stories (consistent with FR-4/FR-5 precedent — backend/internal feature). Proceeding to Workflow Planning to determine which CONSTRUCTION stages are re-entered for FR-6.
+**Context**: `aidlc-state.md` Requirements Analysis marked complete for FR-6 addendum; Workflow Planning stage starting next.
+
+---
+
+## Workflow Planning - Approval (FR-6)
+**Timestamp**: 2026-10-16T00:40:00Z
+**AI Prompt**: "Ready to proceed with this plan?" (presented as Workflow Planning Complete message with execution-plan.md addendum)
+**User Response**: "Approve & continue to Workflow Planning" (approval applied to the FR-6 execution plan presented)
+**Status**: Approved
+**Context**: Workflow plan created for FR-6 (Informer Search & Alerting Service) — added "Addendum: FR-6" section to `aidlc-docs/inception/plans/execution-plan.md`. Re-entered stages: Unit 1 (`LightningMcpServer`) Functional Design, NFR Requirements, NFR Design, Code Generation (primary owner — two new external API integrations, cache-aside, disambiguation logic); Unit 2 (`CoordinatorAgent`) Functional Design, Code Generation (routing + reuse of existing time-range parsing only, NFR stages skipped — no new NFRs); Build and Test. Skipped: Application Design, Units Generation (no new units/components), both units' Infrastructure Design (no new infra). Updated `aidlc-state.md` Stage Progress and Current Stage (now Unit 1 Functional Design).
+
+---
+
+## 2026-10-16 — Session Checkpoint: Stub Data Commit Confirmation + Handoff
+**Timestamp**: 2026-10-16T00:45:00Z
+**Stage**: Session wrap-up (between Workflow Planning and Unit 1 Functional Design)
+**User Input**: "Save the accurate state without missing beat and check-in to repo; remember where it was stopped will continue next day"
+**AI Response**: Before committing, flagged that `data/informer/informer_list.json` (untracked, 520KB) contains real colleague email addresses (`custEmails`) and GUID-shaped `pasUserSecreteKey` values, and that this repo is public. Asked the user how to handle it via AskUserQuestion; user chose "Commit as-is" (QA stub data, confirmed not sensitive). Wrote `session.md` handoff (goal, literal next actions, full context/decisions/assumptions/risks) via the session-handoff skill so the next session can resume at Unit 1 Functional Design with zero lost context. Proceeding to `git add`/`git commit` of all aidlc-docs changes, the two new stub data files, and `session.md`.
+**Context**: No code changes this session — Inception (Requirements Analysis + Workflow Planning) complete for FR-6; Construction not yet started.
+
+---

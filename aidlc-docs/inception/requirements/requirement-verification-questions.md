@@ -1,96 +1,109 @@
-# Requirements Clarification Questions — Location Geocoding Utility
+# Requirements Clarification Questions — Informer Alerting/Search Service
 
-New requirement: accept a free-text location (City/State, ZIP code, or street address) from the user's natural-language query (e.g., "Get all the LX for Germantown MD around 50 miles"), convert it to lat/lon internally via a plain utility (not an MCP tool), and feed that into the existing lat/lon/radius strike-query flow.
-
-Please answer each question by filling in the letter choice after the `[Answer]:` tag.
+Please answer each question by filling in the letter choice after the `[Answer]:` tag. Choose "Other" and describe if none fit.
 
 ## Question 1
-Which free geocoding provider should the utility use? ("Free, open source, no limitation" needs a concrete choice — each has different tradeoffs below.)
+Which real external endpoints will be used, and should the system **permanently** support falling back to the local stub JSON files (`data/informer/informer_list.json`, `data/informer/salesforce_oas_....json`) when the real endpoint is unavailable (e.g. off business hours) — similar to how the weather forecast module already has a fallback pattern — or is the stub data only a **temporary dev-time substitute** that should be removed once the real endpoints are confirmed working?
 
-A) OpenStreetMap Nominatim — free, no API key, global coverage, but has a strict usage policy (max ~1 request/sec, requires a custom User-Agent, not for heavy production traffic)
+A) Permanent fallback — if the real API call fails/times out, automatically fall back to reading the local stub JSON file
 
-B) US Census Bureau Geocoder — free, no API key, no rate limit documented, but **US addresses/ZIPs only** (no global coverage)
+B) Temporary only — wire up real HTTP calls now; stub files are just for local testing via a config flag/URL override, with no automatic fallback-on-failure logic in production code
 
-C) Both: try US Census Geocoder first (fast, unlimited, US-only), fall back to Nominatim for non-US or when Census has no match
-
-D) Other (please describe after [Answer]: tag below — e.g. you already have an API key for a different provider)
-
-[Answer]: B
-
-## Question 2
-Where should this geocoding utility live in the codebase?
-
-A) New internal utility class in `LightningCommon` (unit-1's shared library) — reusable by both Coordinator and MCP Server
-
-B) New internal utility class inside Unit 2 (`CoordinatorAgent`) only — since that's where natural-language queries are parsed today
-
-C) Other (please describe after [Answer]: tag below)
-
-[Answer]: A
-
-## Question 3
-Which location input formats must be supported?
-
-A) City + State only (e.g., "Germantown MD")
-
-B) City + State, and ZIP code (e.g., "20874")
-
-C) City + State, ZIP code, and full street address (e.g., "123 Main St, Germantown, MD 20874")
+C) Config-switch only — a single env var (e.g. `INFORMER_DATA_SOURCE=stub|live`) explicitly selects stub-file mode vs. live-API mode; no automatic failover between them
 
 D) Other (please describe after [Answer]: tag below)
 
-[Answer]: C
+[Answer]:C
+
+## Question 2
+`informer_list.json` has fields `custName`, `informName`, `macAddress`, `informId`. When the user searches (e.g. "status of the informer Lakeside"), should matching be:
+
+A) Exact match only (case-insensitive) on whichever field the value matches
+
+B) Partial/substring match (case-insensitive) on `custName`/`informName`, exact match on `macAddress`/`informId`
+
+C) Partial/substring + fuzzy match on all text fields (most forgiving, more false positives)
+
+D) Other (please describe after [Answer]: tag below)
+
+[Answer]:C
+
+## Question 3
+The stub list can contain multiple informers for the same customer (e.g. "AACS Lakeside High School Campus" has several). If a search matches **more than one** informer, what should happen?
+
+A) Ask the user to disambiguate (list the matches with enough detail to pick one — similar to the existing location-geocoding ambiguity flow), then only query alerts for the chosen one
+
+B) Automatically query and return alerts for **all** matched informers, grouped by informer in the response
+
+C) Automatically pick the single best/first match (e.g. first non-disabled one) without asking, and mention in the response that other matches existed
+
+D) Other (please describe after [Answer]: tag below)
+
+[Answer]:D provide way to pick the selection of available informers; since Question is fuzzy search
 
 ## Question 4
-What should happen when the location text is ambiguous (matches multiple places) or not found at all?
+There is an existing MCP tool `get_informer_status` (`unit-1/.../InformerStatusModule.cs`) that currently returns fully randomized fake data (status/power/zone/device type) — unrelated in shape to this new alert-history requirement. How should this new feature relate to it?
 
-A) Ambiguous → use the first/best match automatically; Not found → return a clear 400 error to the user
+A) Replace it — remove the random-stub implementation and repurpose the `get_informer_status` tool name/contract for this new real search+alerts behavior
 
-B) Ambiguous → return a 400 error listing the possible matches for the user to disambiguate; Not found → return a clear 400 error
+B) Leave it as-is — add a brand-new, separately-named tool (e.g. `get_informer_alerts`) for this feature, and leave `get_informer_status` untouched for now
 
-C) Other (please describe after [Answer]: tag below)
+C) Remove it entirely — it serves no purpose and isn't part of any current requirement; add only the new tool
 
-[Answer]: B
+D) Other (please describe after [Answer]: tag below)
+
+[Answer]:A
 
 ## Question 5
-Should geocoding results be cached to avoid repeated external lookups for the same location string?
+The alerts stub response nests alerts inside multiple "sites"/geofences (`r[]`, e.g. `"nm": "old Outer Radius"`) with an `a[]` array of alerts under each — this is per the **user account** (`pasUserId`), not filtered to one specific device. Should the response:
 
-A) Yes — simple in-memory cache (e.g., dictionary with TTL), cleared on restart, no new infrastructure
+A) Flatten all sites' alerts together into one combined, de-duplicated, time-sorted list (per your request to grab the result by `pasUserId` as a whole)
 
-B) No — always call the geocoding API fresh (simplest, matches "no limitation" assumption)
+B) Keep them grouped by site name (`nm`) in the response, since different sites may mean different physical zones
 
 C) Other (please describe after [Answer]: tag below)
 
-[Answer]: A
+[Answer]:D Since Informer status has changed over the period time - Maybe B would be good option
 
 ## Question 6
-Default radius unit and limits when the user doesn't specify, or specifies only a number (e.g., "50 miles")?
+You said to return "all the utc dates; message; atn for now" per alert, to keep the response efficient. The stub shows these UTC timestamp fields per alert: `actutc` (action/created), `issutc` (issued), `exputc` (expires), `acutc` (auto-clear), `lmutc` (last modified). Confirm which UTC fields to keep:
 
-A) Miles only, with a max cap (e.g., 100 miles) to protect the Lightning Pulse API from oversized queries
+A) All five (`actutc`, `issutc`, `exputc`, `acutc`, `lmutc`) + `atn` + `m`
 
-B) Support both miles and kilometers (detect from phrasing like "50 miles" vs "80 km"), with a max cap
+B) Just the two most meaningful ones — `issutc` (when issued) and `exputc` (when it expires) — + `atn` + `m`
 
 C) Other (please describe after [Answer]: tag below)
 
-[Answer]: B with Max 100 mile max
+[Answer]:A
 
 ## Question 7
-Geographic scope — does this need to support locations outside the United States?
+Your sample prompt ("last 1 day", "yesterday", "last 10 days", explicit start/end, all in local time → convert to UTC epoch) matches natural-language time parsing that already exists in Unit 2's `ParameterExtractor`/`TimeZoneInfo` conversion (built for the lightning-strike time-window queries). Should this new feature:
 
-A) US-only for now (matches current project scope / Phase 1 POC)
+A) Reuse/extend that existing time-parsing logic in `ParameterExtractor` (consistent UX, less new code)
 
-B) Global (any country)
+B) Build separate, independent time-parsing logic specific to informer alert queries
 
 C) Other (please describe after [Answer]: tag below)
 
-[Answer]: A
+[Answer]:A
 
 ## Question 8
-How should the utility handle geocoding API timeouts or transient failures?
+Should disabled informers (`isDisabled: true` in the stub data) be included in search results at all?
 
-A) Single attempt with a short timeout (e.g., 5s); on failure, return a clear error to the user — no retries (matches current POC simplicity, no Resiliency extension enabled)
+A) Exclude disabled informers from search matches entirely
 
-B) Retry once or twice with backoff before failing
+B) Include them, but clearly flag them as disabled in the response
+
+C) Other (please describe after [Answer]: tag below)
+
+[Answer]:C if the prompt asked for disabled; Response can be it is disabled and not operateable
+
+## Question 9
+If a search finds **zero** matching informers, or the matched informer has **zero** alerts in the requested time range, what should the response say?
+
+A) A short, plain-language "no informer found matching X" / "no alerts found for X between Y and Z" message — no error codes or raw payloads
+
+B) Same as A, plus suggest close/similar matches if any exist (e.g. "did you mean 'AACS Lakeside High School Campus'?")
 
 C) Other (please describe after [Answer]: tag below)
 

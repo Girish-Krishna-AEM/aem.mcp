@@ -3,8 +3,8 @@
 ## Project
 - **Name**: Lightning Detection MCP Server & Coordinator Agent (POC)
 - **Type**: Greenfield
-- **Current Phase**: 🟡 OPERATIONS PHASE
-- **Current Stage**: Operations — EC2 deployment in progress (iterating on `deploy-ec2.sh` against a real, repurposed instance)
+- **Current Phase**: 🟢 CONSTRUCTION PHASE (re-opened for FR-6; 🟡 OPERATIONS PHASE EC2 deployment remains separately in-progress, see Operations section below)
+- **Current Stage**: Unit 1 (`LightningMcpServer`) Functional Design — FR-6 Informer Search & Alerting Service
 
 ## Process Note (added 2026-10-08)
 - FR-5 (real daily/hourly forecast tools, commit `097ab9d`) and the initial EC2 deployment script work (commits `2c05c19`..`18e4fa2`) were implemented directly without going through AI-DLC stage gates or contemporaneous audit logging. This has been retroactively reconciled on 2026-10-08 — see `requirements.md` FR-5 and the audit.md entries dated 2026-10-08.
@@ -27,28 +27,42 @@
 - **2026-10-08 fix (FR-1.1, Unit 1)**: discovered (via the real API's live swagger spec + empirical testing, and user-reported missing request params in logs) that `LightningPulseApiClient`/`StrikeDetectionModule` never sent `p` (point)/`radius`/correctly-unit-suffixed radius to the upstream `v1/pulses` endpoint — it fetched an unfiltered-by-location pulse set for the time window and filtered only client-side. Fixed: `GetPulsesAsync` now takes `latitude`/`longitude`/`radius`/`radiusUnit` and sends `p=<lat>,<lon>&radius=<value><mi|km>` (API requires the unit suffix — a bare number returns `"radius is not valid."`). Unit 1: 56/56 `dotnet test` passing (4 new). **Fully live-verified**: the user's exact original query ("Any LX near Miami Beach, FL around 100 miles last 10 minutes") now returns real server-side-filtered strike data (573 strikes) through the full Docker Compose stack against the real upstream API, with the full request URL visible in logs.
 - **2026-10-08 fix (FR-2/FR-5, Unit 2+1)**: three distinct bugs found investigating "hourly forecast looks wrong" — (1) `IntentClassifier`'s Strike regex matched the generic words `near`/`location`, so ANY "near X" query (including weather queries) was misrouted to the strike tool — fixed by removing those words from the Strike pattern (`strike|lightning|lx` only); (2) `ParameterExtractor`'s `LocationPhrasePattern` swallowed a trailing "in details"/"with details" into the location text, breaking geocoding — fixed by adding it as a recognized stop-phrase; (3) neither daily nor hourly forecast responses exposed the upstream `ForecastCreatedUtc` (when the forecast was generated), so two forecasts fetched minutes apart looked contradictory with no way to tell why — fixed by threading `ForecastCreatedUtc` through `WeatherForecastApiModels`/`DomainModels`/`WeatherForecastModule` and appending `(as of ...)` to the Coordinator's weather summary. Unit 2: 66/66 passing (4 new); Unit 1: 56/56 unaffected. **Fully live-verified** with the user's exact original query end-to-end through Docker Compose.
 
+## Execution Summary (Addendum: FR-6 Informer Search & Alerting Service — added 2026-10-16)
+- New requirement: replace the randomized stub `get_informer_status` tool with a real search-by-(customer name/informer name/MAC/informer ID) + alerts-by-time-range lookup, per user-supplied stub data files (`data/informer/informer_list.json`, `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json`) standing in for two real endpoints that are unavailable off business hours.
+- Requirements Analysis completed via `requirement-verification-questions.md` (9 questions) + one follow-up clarification (`requirement-verification-clarification-questions.md`, Q8 disabled-informer ambiguity) — all resolved. See `requirements.md` FR-6 for full detail.
+- Key decisions: `INFORMER_DATA_SOURCE=stub|live` explicit config switch (no auto-failover); fuzzy/partial match on all 4 search fields; disabled informers always match but skip the alerts call; ambiguous multi-match returns a disambiguation pick-list (reusing FR-4's pattern); `get_informer_status` tool name/contract is replaced (not a new tool); alerts grouped by site name (`r[].nm`); per-alert response trimmed to `atn`/`m`/5 UTC fields; reuses Unit 2's existing local→UTC time-range parsing (FR-1.1 convention).
+- Requirements Analysis approved 2026-10-16. Workflow Planning completed same day — see `aidlc-docs/inception/plans/execution-plan.md` Addendum: FR-6 for full detail/rationale.
+- Re-entered stages: Unit 1 Functional Design, NFR Requirements, NFR Design, Code Generation; Unit 2 Functional Design, Code Generation; Build and Test.
+- Skipped: Application Design, Units Generation (no new units/components), Unit 1 + Unit 2 Infrastructure Design (no new infra), Unit 2 NFR Requirements/Design (reuses existing time-zone/retry conventions as-is).
+
 ## Stage Progress
 
 ### 🔵 INCEPTION PHASE
 - [x] Workspace Detection
 - [N/A] Reverse Engineering (greenfield project)
-- [x] Requirements Analysis (incl. 2026-10-06 FR-4 addendum)
-- [⏭️] User Stories (SKIP)
-- [x] Workflow Planning (incl. 2026-10-06 FR-4 addendum plan)
-- [⏭️] Application Design (SKIP — FR-4 addendum: no new component boundaries)
-- [x] Units Generation (COMPLETE — FR-4 addendum: SKIP, no new units)
+- [x] Requirements Analysis (incl. 2026-10-06 FR-4 addendum, 2026-10-16 FR-6 addendum — APPROVED)
+- [⏭️] User Stories (SKIP — incl. FR-6, approved 2026-10-16)
+- [x] Workflow Planning (incl. 2026-10-06 FR-4 addendum plan, 2026-10-16 FR-6 addendum plan)
+- [⏭️] Application Design (SKIP — FR-4 and FR-6 addenda: no new component boundaries)
+- [x] Units Generation (COMPLETE — FR-4 and FR-6 addenda: SKIP, no new units)
 
 ### 🟢 CONSTRUCTION PHASE (Per-Unit Loop)
 
-#### Unit 1: Lightning MCP Server (+ LightningCommon) — NOT re-opened
-- No changes required for FR-4; `get_lightning_strikes_near_location` already accepts `latitude`/`longitude` directly. Previously-completed stages stand as-is.
+#### Unit 1: Lightning MCP Server (+ LightningCommon) — re-opened for FR-6 (primary owner)
+- [ ] Functional Design (NOT STARTED — next stage)
+- [ ] NFR Requirements (PENDING)
+- [ ] NFR Design (PENDING)
+- [⏭️] Infrastructure Design (SKIP — FR-6 addendum: no new infra resources)
+- [ ] Code Generation (PENDING)
+- *(FR-4 note: no changes were required for FR-4; `get_lightning_strikes_near_location` already accepted `latitude`/`longitude` directly. Prior-completed stages for FR-1.1–FR-1.4/FR-5 stand as-is except `get_informer_status`, now being replaced by FR-6.)*
 
-#### Unit 2: Coordinator Agent — re-opened for FR-4 (sole owner)
-- [x] Functional Design (COMPLETE — GeocodeOutcome model, BR-1 through BR-10, replaced hardcoded KnownLocations dictionary in ParameterExtractor.cs)
-- [x] NFR Requirements (COMPLETE — 10s timeout, fixed 500ms retry backoff, 1hr unbounded cache, IHttpClientFactory, mocked-only tests)
-- [x] NFR Design (COMPLETE — manual retry loop, IMemoryCache cache-aside, Options-pattern config mirroring Unit 1, ILocationGeocoder interface)
-- [⏭️] Infrastructure Design (SKIP — FR-4 addendum: no new infra resources)
-- [x] Code Generation (COMPLETE — LocationGeocoder/ILocationGeocoder/GeocodeOutcome/CensusGeocoderOptions/NominatimOptions created; ParameterExtractor/IParameterExtractor/QueryController/Program.cs/IntentClassifier.cs modified; LocationGeocoderTests.cs created, ParameterExtractorTests.cs + CoordinatorIntegrationTests.cs + IntentClassifierTests.cs updated; all 51 tests passing; Unit 1 regression-build confirmed unaffected)
+#### Unit 2: Coordinator Agent — re-opened for FR-6 (routing + time-range parsing only)
+- [ ] Functional Design (PENDING — FR-6: new Informer-alert intent in IntentClassifier.cs, thin ParameterExtractor extension reusing existing local→UTC conversion)
+- [⏭️] NFR Requirements (SKIP — FR-6 addendum: reuses existing time-zone/retry conventions as-is, no new external dependency in Unit 2)
+- [⏭️] NFR Design (SKIP — follows from NFR Requirements skip)
+- [⏭️] Infrastructure Design (SKIP — FR-6 addendum: no new infra resources)
+- [ ] Code Generation (PENDING — FR-6)
+- *(FR-4, COMPLETE: GeocodeOutcome model, BR-1 through BR-10, replaced hardcoded KnownLocations dictionary in ParameterExtractor.cs; 10s timeout, fixed 500ms retry backoff, 1hr unbounded cache, IHttpClientFactory, mocked-only tests; manual retry loop, IMemoryCache cache-aside, Options-pattern config mirroring Unit 1, ILocationGeocoder interface; LocationGeocoder/ILocationGeocoder/GeocodeOutcome/CensusGeocoderOptions/NominatimOptions created; ParameterExtractor/IParameterExtractor/QueryController/Program.cs/IntentClassifier.cs modified; LocationGeocoderTests.cs created, ParameterExtractorTests.cs + CoordinatorIntegrationTests.cs + IntentClassifierTests.cs updated; all 51 tests passing; Unit 1 regression-build confirmed unaffected)*
 
 #### Unit 3: Infrastructure Orchestration
 - [⏭️] Functional Design (SKIP)
@@ -67,6 +81,8 @@
   - Blocked as of 2026-10-08 on confirming the real git clone path on the instance (likely `~/aem-mcp`, not `/opt/lightning-mcp`) — see `session.md` for literal next steps; user is running the script interactively and pasting output back.
   - Still outstanding: confirm outbound HTTPS access from the instance to `geocoding.geo.census.gov`, `nominatim.openstreetmap.org`, and the internal staging forecast API (`stg.en.ods.forecasts.web.enstg.co`, FR-5) — the latter has shown intermittent `503`s unrelated to deployment.
   - **Blocked on IAM permissions (2026-10-08)**: instance now has public IP `54.91.14.149`, but none of its 3 attached security groups (`qa-ec2-allinstances`, `qa-itops`, `Girish-LLM-SG`) allow inbound 8020/8001 from anywhere (public or VPN). Attempted to add the rule directly via `aws ec2 authorize-security-group-ingress` (profile `qa`) — blocked by an explicit IAM deny (`AEMDeniesDevelopers` policy) preventing developers from modifying security groups. A consolidated request (both VPN range `192.168.60.0/22` and current public IP `69.251.56.226/32`, for both ports, on `Girish-LLM-SG`/`sg-08ea9601520be2cd1`) has been drafted for whoever has permission (admin or `qa-itops`) to apply. Not yet submitted/applied as of this entry.
+  - **Resolved (2026-10-16)**: connectivity confirmed — `claude mcp list` shows the `lightning-mcp` MCP server entry (`http://10.8.20.224:8020/mcp`, EC2 private IP) as `✔ Connected`. Whoever had SG/IAM permission must have applied the drafted ingress rule (or this session reaches the instance via VPN into the private IP directly). User confirmed this endpoint is the one to treat as the live EC2 connection. Not yet re-confirmed which exact path (VPN-to-private-IP vs. public-IP+SG-rule) resolved it — re-verify if the connection later drops.
+  - Added a second local MCP server registration, `lightning-mcp-local` (`http://localhost:8020/mcp`), so a local `docker compose up` stack and the EC2 instance can both be queried in the same Claude Code session without conflict (different hosts/tool namespaces, no port collision).
 
 ## Extension Configuration
 | Extension | Enabled | Decided At |
