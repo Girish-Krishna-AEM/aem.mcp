@@ -56,7 +56,8 @@ Implement FR-6 (Informer Search & Alerting Service). Requirements + Workflow Pla
 - `lightning-mcp-local` MCP server is registered in local Claude Code config but will show "Failed to connect" until a local `docker compose up` is run.
 
 ## Rollback point
-- Last commit before this session's changes: `abd911e` ("Log EC2 security-group connectivity blocker in AI-DLC docs"). This session's doc + stub-data changes were committed on top — see repo log for the new commit hash.
+- Last commit before this session's changes: `abd911e` ("Log EC2 security-group connectivity blocker in AI-DLC docs").
+- This session's doc + stub-data changes are committed as `718b115` ("Add FR-6 Informer Search & Alerting Service requirements/plan, confirm EC2 connectivity") on `main`. Not yet pushed to remote — confirm with user before pushing.
 
 ## Risks/watch-items
 - `data/informer/informer_list.json` (520KB) now permanently contains real colleague emails and GUID-shaped secret keys in public repo history.
