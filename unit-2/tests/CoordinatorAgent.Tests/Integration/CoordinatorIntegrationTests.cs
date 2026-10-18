@@ -134,6 +134,107 @@ public class CoordinatorIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Query_InformerFound_ReturnsFormattedSummary()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    kind = "Found",
+                    match = new { informId = 2049, informName = "QA Informer 6", macAddress = "00:40:9D:D4:D1:F8", custName = "AACS Lakeside High School Campus", isDisabled = false },
+                    alertSiteGroups = new[] { new { siteName = "Main Site", alerts = new[] { new { atn = "LX", message = "test" } } } },
+                    candidates = Array.Empty<object>()
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "status of the informer QA Informer 6" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("get_informer_status", body.GetProperty("toolName").GetString());
+        Assert.Contains("1 alert(s)", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task Query_InformerDisabled_ReturnsDisabledSummary()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    kind = "Disabled",
+                    match = new { informId = 9000, informName = "Disabled Unit", macAddress = "AA:BB:CC:DD:EE:FF", custName = "Some Other Customer", isDisabled = true },
+                    alertSiteGroups = Array.Empty<object>(),
+                    candidates = Array.Empty<object>()
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "status of the informer Disabled Unit" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("disabled", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task Query_InformerAmbiguous_ReturnsCandidateList()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    kind = "Ambiguous",
+                    match = (object?)null,
+                    alertSiteGroups = Array.Empty<object>(),
+                    candidates = new[]
+                    {
+                        new { informId = 2049, informName = "QA Informer 6", macAddress = "00:40:9D:D4:D1:F8", custName = "AACS Lakeside High School Campus", isDisabled = false },
+                        new { informId = 4089, informName = "test oct 15", macAddress = "00:00:00:00:00:00", custName = "AACS Lakeside High School Campus", isDisabled = false }
+                    }
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "status of the informer AACS Lakeside High School Campus" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("Multiple informers match", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task Query_InformerNotFound_ReturnsNotFoundSummary()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    kind = "NotFound",
+                    match = (object?)null,
+                    alertSiteGroups = Array.Empty<object>(),
+                    candidates = Array.Empty<object>()
+                }
+            })
+        };
+
+        var response = await _client!.PostAsJsonAsync("/query", new { query = "status of the informer NoSuchDevice" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("No informer found", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
     public async Task Query_MissingLocation_ReturnsBadRequest()
     {
         var response = await _client!.PostAsJsonAsync("/query", new { query = "Is there lightning?" });

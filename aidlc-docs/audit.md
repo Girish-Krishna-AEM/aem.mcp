@@ -855,3 +855,166 @@ All extension opt-in questions were explicitly confirmed by the user during this
 **Context**: No code changes this session — Inception (Requirements Analysis + Workflow Planning) complete for FR-6; Construction not yet started.
 
 ---
+
+## 2026-10-17 — Resume AI-DLC: Unit 1 Functional Design (FR-6) Started
+**Timestamp**: 2026-10-17T00:00:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Functional Design
+**User Input**: "Resume AI-DLC. Read aidlc-docs/aidlc-state.md and the last 20 lines of audit.md. Current stage: <stage>. Load only that stage's inputs." / "Resume AI-DLC."
+**AI Response**: Confirmed current stage from `aidlc-state.md` (Unit 1 Functional Design, FR-6). Loaded `.aidlc-rule-details/construction/functional-design.md`. Application Design was skipped for this project (no `unit-of-work.md` exists), so used `requirements.md` FR-6 as the unit-context substitute. Created `aidlc-docs/construction/plans/unit1-lightningmcpserver-fr6-functional-design-plan.md` with 2 remaining clarifying questions (default time-range behavior when a query omits a time phrase entirely; whether a separate close-match-suggestion algorithm is needed given search is already fuzzy) — all other FR-6 business rules were already fully resolved during Requirements Analysis and need no further question.
+**Context**: Gate: awaiting user answers before generating `business-logic-model.md`/`business-rules.md`/`domain-entities.md`.
+
+---
+
+## 2026-10-17 — Unit 1 Functional Design (FR-6) Artifacts Generated
+**Timestamp**: 2026-10-17T00:10:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Functional Design
+**User Input**: "Done, answered both questions" (Q1=A: default time range of last 24 hours when none specified; Q2=A: no separate close-match-suggestion algorithm needed — fuzzy search already covers it)
+**AI Response**: Generated `aidlc-docs/construction/unit-1/functional-design/domain-entities.md` (`InformerRecord`, `InformerSearchMatch`, `InformerSearchOutcome`, `AlertRecord`, `AlertSiteGroup`, `InformerStatusResult` — discriminated-result pattern mirroring Unit 2's `GeocodeOutcome`), `business-rules.md` (BR-1 through BR-14, incorporating all FR-6 requirement answers plus both Functional Design clarifications), and `business-logic-model.md` (`InformerDirectory` component replacing `InformerStatusModule`, 8-step processing flow).
+**Context**: Gate: awaiting user's explicit approval of the Functional Design artifacts before proceeding to Unit 1 NFR Requirements.
+
+---
+
+## 2026-10-17 — Unit 1 Functional Design (FR-6) Approved
+**Timestamp**: 2026-10-17T00:15:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Functional Design → NFR Requirements
+**User Input**: "Approve & continue to NFR Requirements"
+**AI Response**: Functional Design artifacts approved as-is. Proceeding to Unit 1 NFR Requirements.
+**Context**: `aidlc-state.md` Unit 1 Functional Design marked complete/approved for FR-6; NFR Requirements starting next.
+
+---
+
+## 2026-10-17 — Unit 1 NFR Requirements (FR-6) Generated
+**Timestamp**: 2026-10-17T00:20:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) NFR Requirements
+**AI Response**: Generated `aidlc-docs/construction/unit-1/nfr-requirements/nfr-requirements.md` and `tech-stack-decisions.md` directly (no new question round) — Workflow Planning's rationale already specified mirroring FR-4 (`LocationGeocoder`)/FR-5 (`WeatherForecastApiClient`) conventions for the two new external dependencies, so no new ambiguity existed. Key values: 10s timeout, 3 attempts/fixed 500ms backoff (live mode only), 1-hour single-key cache for the informer list, no caching for alerts (time-range varies per query), `IHttpClientFactory` + `IMemoryCache` (no new NuGet packages), plain `string.Contains` ordinal-ignore-case substring matching (no fuzzy-matching library — Q2=C specified substring, not edit-distance).
+**Context**: Gate: awaiting user's explicit approval before proceeding to Unit 1 NFR Design.
+
+---
+
+## 2026-10-17 — Unit 1 NFR Requirements (FR-6) Approved
+**Timestamp**: 2026-10-17T00:25:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) NFR Requirements → NFR Design
+**User Input**: "Approve & continue to NFR Design"
+**AI Response**: NFR Requirements approved as-is. Proceeding to Unit 1 NFR Design.
+**Context**: `aidlc-state.md` Unit 1 NFR Requirements marked complete/approved for FR-6; NFR Design starting next.
+
+---
+
+## 2026-10-17 — Unit 1 NFR Design (FR-6) Generated
+**Timestamp**: 2026-10-17T00:30:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) NFR Design
+**AI Response**: Surveyed existing `unit-1/src/LightningMcpServer` structure (`ExternalApis/` for HTTP clients+options, `DomainModules/` for business logic, `Program.cs` DI registrations) to ground the design in real file paths rather than guesses. Generated `aidlc-docs/construction/unit-1/nfr-design/nfr-design-patterns.md` (manual retry loop mirroring `LocationGeocoder`, explicit stub/live branch per client, cache-aside for the informer list only, Options pattern for both new config classes defaulting `DataSource=stub`, typed-HTTP-client DI, no new secrets) and `logical-components.md` (new `IInformerApiClient`/`IAlertsApiClient`/options/`InformerDirectory`/domain-model types with concrete file paths; removed `InformerStatus`/`GetInformerStatusRequest`; `Program.cs`/MCP-tool-schema/`appsettings.json`/`docker-compose.yml`/`.env` modification points; end-to-end interaction flow diagram).
+**Context**: Gate: awaiting user's explicit approval before proceeding to Unit 1 Code Generation.
+
+---
+
+## 2026-10-17 — Unit 1 NFR Design (FR-6) Approved
+**Timestamp**: 2026-10-17T00:35:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) NFR Design → Code Generation
+**User Input**: "Approve & continue to Code Generation"
+**AI Response**: NFR Design approved as-is. Proceeding to Unit 1 Code Generation (Part 1 — Planning).
+**Context**: `aidlc-state.md` Unit 1 NFR Design marked complete/approved for FR-6; Code Generation starting next.
+
+---
+
+## 2026-10-17 — Unit 1 Code Generation Plan (FR-6) — Part 1 Planning
+**Timestamp**: 2026-10-17T00:40:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Code Generation (Part 1 — Planning)
+**AI Response**: Inspected actual Unit 1 source (`McpTools.cs`, `ToolRegistry.cs`, `LightningPulseApiClient.cs`/`Options.cs`, `WeatherForecastApiClient.cs`/`Options.cs`, `Program.cs`, `LightningCommon/DomainModels.cs`, `InformerStatusModuleTests.cs`) to ground the plan in real file paths and conventions rather than assumptions. **Finding**: `LightningPulseApiClient`/`WeatherForecastApiClient` have no retry logic and no `TimeoutSeconds` config today — corrected `nfr-requirements.md` and `nfr-design-patterns.md` to stop misattributing FR-6's new retry-loop/timeout design to an existing Unit 1 precedent (it's actually borrowed from Unit 2's `LocationGeocoder`, FR-4); the retry-loop design decision itself is unchanged, only the citation was wrong. Also corrected `logical-components.md`'s `InformerDirectory` public surface from an async signature to a **synchronous** one, matching `IInformerStatusModule`'s existing contract and the `StrikeDetectionModule`/`WeatherForecastModule` blocking-internally convention (confirmed by reading `StrikeDetectionModule.cs`). Overwrote `aidlc-docs/construction/plans/unit-1-code-generation-plan.md` (reusing the existing filename per the FR-4 precedent in `unit-2-code-generation-plan.md`) with a 12-step FR-6 plan: domain models in `LightningCommon/DomainModels.cs`, new `InformerApiOptions`/`AlertsApiOptions`/`IInformerApiClient`/`InformerApiClient`/`IAlertsApiClient`/`AlertsApiClient`, rewritten `InformerStatusModule.cs`, unit tests (modified + 2 new files), `McpTools.cs`/`ToolRegistry.cs` tool-contract update, `Program.cs` DI wiring, `.env`/`docker-compose.yml`/`Dockerfile` deployment artifacts, and 3 markdown summaries.
+**Context**: Gate: awaiting user's explicit approval of the Code Generation plan before executing Part 2 (Generation).
+
+---
+
+## 2026-10-17 — Unit 1 Code Generation Plan (FR-6) Approved — Executing Part 2
+**Timestamp**: 2026-10-17T00:45:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Code Generation (Part 2 — Generation)
+**User Input**: "Approve & continue to Part 2: Generation"
+**AI Response**: Plan approved as-is. Executing the 12 steps in `unit-1-code-generation-plan.md` sequentially.
+**Context**: Checkboxes in the plan file will be marked [x] as each step completes.
+
+---
+
+## 2026-10-18 — Unit 1 Code Generation (FR-6) Complete
+**Timestamp**: 2026-10-18T02:15:00Z
+**Stage**: Construction — Unit 1 (`LightningMcpServer`) Code Generation (Part 2 — Generation)
+**AI Response**: Executed all 12 plan steps: replaced the old random-stub Informer models in `LightningCommon/DomainModels.cs` with the real FR-6 domain model; added `InformerApiOptions`/`AlertsApiOptions` and `IInformerApiClient`/`InformerApiClient`/`IAlertsApiClient`/`AlertsApiClient` (stub/live mode switch, 3-attempt/500ms retry in live mode); rewrote `InformerStatusModule.cs` (cache-aside, substring search, disambiguation, disabled short-circuit, 24h default window); updated `McpTools.cs`/`ToolRegistry.cs` tool contract; wired DI in `Program.cs` (including `AddMemoryCache()`, previously absent from Unit 1); added the 8 new env vars to `.env`/`docker-compose.yml`; added `COPY data/ ./data/` to the Dockerfile (found during execution: the image never shipped the `data/` directory at all). **Verification**: ran `dotnet build` (0 errors) and `dotnet test` — found and fixed 1 failing pre-existing integration test (`CallInformerTool_WithValidInput_ReturnsStatus`, using the old `informerId` argument) and a real file-path-resolution gap (default relative stub paths resolve against the process's working directory, which is the test host's `bin/` folder under `WebApplicationFactory`, not the repo root) — fixed by overriding `InformerApiOptions`/`AlertsApiOptions.StubFilePath` via `ConfigureTestServices`, same pattern as the existing `FakeLightningPulseApiClient` override. Final result: **68/68 tests passing**.
+**Context**: Gate: awaiting user's explicit approval of the generated code before proceeding to Unit 2 Code Generation.
+
+---
+
+## 2026-10-18 — Unit 1 Code Generation (FR-6) Approved; Correcting Next-Stage Label
+**Timestamp**: 2026-10-18T02:20:00Z
+**Stage**: Construction — Unit 1 Code Generation → Unit 2 Functional Design
+**User Input**: "Approve & continue to Unit 2 Code Generation"
+**AI Response**: Unit 1 Code Generation approved as-is. Flagged a self-correction: the prior completion message's "next stage" label incorrectly said "Unit 2 Code Generation" — the approved `execution-plan.md` Addendum: FR-6 calls for **Unit 2 Functional Design** (EXECUTE, minimal depth) before Code Generation. Proceeding to Unit 2 Functional Design, not skipping ahead.
+**Context**: `aidlc-state.md` Unit 1 Code Generation marked complete/approved; Unit 2 Functional Design starting next.
+
+---
+
+## 2026-10-18 — Unit 2 Functional Design (FR-6) + Mid-Stream Correction to Unit 1
+**Timestamp**: 2026-10-18T02:30:00Z
+**Stage**: Construction — Unit 2 (`CoordinatorAgent`) Functional Design
+**AI Response**: While designing `ResultFormatter.BuildInformerSummary`, found that `InformerStatusResultKind` (Unit 1) would serialize as a bare integer (System.Text.Json default enum behavior) rather than a readable string, since no `JsonStringEnumConverter` was registered — this would make Unit 2's/any consumer's branching on `kind` opaque and fragile. Added `[JsonConverter(typeof(JsonStringEnumConverter))]` to `InformerStatusResultKind` in `unit-1/src/LightningCommon/DomainModels.cs`; rebuilt and re-ran Unit 1 tests (68/68 still passing) to confirm no regression. Inspected actual Unit 2 code (`IntentClassifier.cs`, `ParameterExtractor.cs`, `QueryController.cs`, `ResultFormatter.cs`) — found `Intent.Informer` and its tool-name mapping already exist and need no change; only `ExtractInformerParameters` (currently strict `informer-XXX`/`zone-X` regex matching) and `BuildInformerSummary` (currently reads old `status`/`powerStatus` fields) need rewriting. Given the minimal scope and strong existing precedent (`LocationPhrasePattern`, `TryExtractTimeWindow`, `GeocodeOutcome.Ambiguous` summary style — all reusable as-is), generated the Functional Design addenda directly without a new question round: appended BR-12 (search-phrase extraction), BR-13 (time-window reuse, no new time-parsing logic per FR-6/Q7), BR-14 (result formatting per kind) to `unit-2/functional-design/business-rules.md`; appended a "no new entities" note to `domain-entities.md`; appended the `ExtractInformerParameters`/`BuildInformerSummary` component design to `business-logic-model.md`.
+**Context**: Gate: awaiting user's explicit approval before proceeding to Unit 2 Code Generation.
+
+---
+
+## 2026-10-18 — Unit 2 Functional Design (FR-6) Approved
+**Timestamp**: 2026-10-18T02:35:00Z
+**Stage**: Construction — Unit 2 Functional Design → Code Generation
+**User Input**: "Continue to Next stage"
+**AI Response**: Functional Design approved as-is. Per the approved execution plan (NFR Requirements/Design skipped for Unit 2 — no new NFRs), proceeding directly to Unit 2 Code Generation (Part 1 — Planning).
+**Context**: `aidlc-state.md` Unit 2 Functional Design marked complete/approved; Code Generation starting next.
+
+---
+
+## 2026-10-18 — Unit 2 Code Generation Plan (FR-6) — Part 1 Planning
+**Timestamp**: 2026-10-18T02:40:00Z
+**Stage**: Construction — Unit 2 (`CoordinatorAgent`) Code Generation (Part 1 — Planning)
+**AI Response**: Inspected existing `ParameterExtractorTests.cs`/`IntentClassifierTests.cs`/`CoordinatorIntegrationTests.cs` for precedent — confirmed `IntentClassifier` needs no change (existing "informer" keyword regex still matches), no existing `ResultFormatter` tests exist, and no existing informer integration test exists. Overwrote `aidlc-docs/construction/plans/unit-2-code-generation-plan.md` (reusing the filename per FR-4 precedent) with an 8-step FR-6 plan: rewrite `ExtractInformerParameters`/add `InformerSearchPhrasePattern`, update its tests, rewrite `BuildInformerSummary` for the 4 `kind` values, add informer-intent integration test coverage, 3 markdown summaries. No deployment artifacts needed (Unit 2 makes no new external calls).
+**Context**: Gate: awaiting user's explicit approval of the Code Generation plan before executing Part 2 (Generation).
+
+---
+
+## 2026-10-18 — Unit 2 Code Generation Plan (FR-6) Approved — Executing Part 2
+**Timestamp**: 2026-10-18T02:45:00Z
+**Stage**: Construction — Unit 2 (`CoordinatorAgent`) Code Generation (Part 2 — Generation)
+**User Input**: "Approve & continue to Part 2: Generation"
+**AI Response**: Plan approved as-is. Executing the 8 steps in `unit-2-code-generation-plan.md` sequentially.
+**Context**: Checkboxes in the plan file will be marked [x] as each step completes.
+
+---
+
+## 2026-10-18 — Unit 2 Code Generation (FR-6) Complete
+**Timestamp**: 2026-10-18T03:00:00Z
+**Stage**: Construction — Unit 2 (`CoordinatorAgent`) Code Generation (Part 2 — Generation)
+**AI Response**: Executed all 8 plan steps: added `InformerSearchPhrasePattern`, rewrote `ExtractInformerParameters` (free-text search + epoch-second time range via existing `TryExtractTimeWindow`, removing the old strict `InformerIdPattern`/`ZonePattern`); rewrote `BuildInformerSummary` for the 4 `kind` values; updated `ParameterExtractorTests.cs`; added 4 new informer-intent round-trip tests to `CoordinatorIntegrationTests.cs` (one per `kind`, following the existing `FakeMcpHandler` pattern); 3 markdown summaries; no deployment artifacts needed. **Verification**: `dotnet build` (0 errors) and `dotnet test` — **72/72 tests passing** on first run, no additional fixes needed this time.
+**Context**: Gate: awaiting user's explicit approval of the generated code before proceeding to Build and Test (full-stack).
+
+---
+
+## 2026-10-18 — Unit 2 Code Generation (FR-6) Approved — Proceeding to Build and Test
+**Timestamp**: 2026-10-18T03:05:00Z
+**Stage**: Construction — Build and Test
+**User Input**: "Approve & continue to Build and Test"
+**AI Response**: Unit 2 Code Generation approved as-is. Both FR-6 units are now code-complete (Unit 1: 68/68, Unit 2: 72/72 unit tests). Proceeding to Build and Test for full-stack live verification against the stub data files, per [[project_live_api_verification_required]].
+**Context**: `aidlc-state.md` Unit 2 Code Generation marked complete/approved; Build and Test starting next.
+
+---
+
+## 2026-10-18 — Build and Test (FR-6) Complete
+**Timestamp**: 2026-10-18T03:30:00Z
+**Stage**: Construction — Build and Test (full-stack, FR-6 addendum)
+**AI Response**: Ran `dotnet build`/`dotnet test` for both units (140/140 total passing: 68 Unit 1 + 72 Unit 2). Ran a full live Docker Compose verification: `docker compose build` (confirmed the `COPY data/ ./data/` fix actually ships the stub files into the image), `docker compose up -d` (both containers healthy), then live `POST /query` calls against the real stub data for Found (single match, correct 24h default window, correct field-trimming/site-grouping), Ambiguous (all 7 real candidates for "AACS Lakeside High School Campus" from the actual stub file), and NotFound, plus a Sensor-intent regression check. **Found a real test-data gap**: the supplied `informer_list.json` contains zero `isDisabled: true` records, so the Disabled path could not be live-verified — documented as a known limitation (covered by mocked tests only) rather than silently claiming full live coverage. `docker compose down` cleaned up; confirmed no leftover standalone server processes. Updated `aidlc-docs/construction/build-and-test/build-and-test-summary.md` with a full FR-6 addendum section, and corrected a stale example query in `integration-test-instructions.md`.
+**Context**: Gate: awaiting user's explicit approval before proceeding (Operations phase is currently a placeholder — FR-6 ships to EC2 via the existing `deploy-ec2.sh` flow whenever that's next run).
+
+---
+
+## 2026-10-18 — Build and Test (FR-6) Approved — FR-6 Fully Complete
+**Timestamp**: 2026-10-18T03:35:00Z
+**Stage**: Construction → Operations (placeholder)
+**User Input**: "Approve & continue to Operations"
+**AI Response**: Build and Test approved as-is. FR-6 (Informer Search & Alerting Service) is now fully complete through Construction: Requirements → Workflow Planning → Unit 1 Functional Design/NFR Requirements/NFR Design/Code Generation → Unit 2 Functional Design/Code Generation → Build and Test, all approved with live verification. Per CLAUDE.md, Operations is currently a placeholder phase (no deployment/monitoring workflows defined yet) — the AI-DLC workflow for this feature addendum ends here. No code changes pending. FR-6's actual shipment to EC2 will happen via the existing, separately-tracked `deploy-ec2.sh` flow (see Operations section of `aidlc-state.md`) whenever that's next run — not a new action triggered by this approval.
+**Context**: `aidlc-state.md` updated: FR-6 addendum marked fully complete across all phases.
+
+---

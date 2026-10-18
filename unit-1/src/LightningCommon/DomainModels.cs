@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace LightningCommon;
 
 public class LightningStrike
@@ -143,17 +145,100 @@ public class GetSensorDiagnosticsRequest
     public string SensorId { get; set; } = string.Empty;
 }
 
-public class InformerStatus
-{
-    public string Status { get; set; } = "active";
-    public string LastActivation { get; set; } = string.Empty;
-    public string PowerStatus { get; set; } = "normal";
-    public string Zone { get; set; } = string.Empty;
-    public string DeviceType { get; set; } = string.Empty;
-}
-
 public class GetInformerStatusRequest
 {
-    public string? InformerId { get; set; }
-    public string? Zone { get; set; }
+    public string Search { get; set; } = string.Empty;
+    public long? StartDateTimeUtc { get; set; }
+    public long? EndDateTimeUtc { get; set; }
+}
+
+public class InformerRecord
+{
+    [JsonPropertyName("custId")]
+    public int CustId { get; set; }
+
+    [JsonPropertyName("informId")]
+    public int InformId { get; set; }
+
+    [JsonPropertyName("macAddress")]
+    public string MacAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("informName")]
+    public string InformName { get; set; } = string.Empty;
+
+    [JsonPropertyName("pasUserId")]
+    public string PasUserId { get; set; } = string.Empty;
+
+    [JsonPropertyName("isDisabled")]
+    public bool IsDisabled { get; set; }
+
+    [JsonPropertyName("custName")]
+    public string CustName { get; set; } = string.Empty;
+}
+
+public class InformerSearchMatch
+{
+    public int InformId { get; set; }
+    public string InformName { get; set; } = string.Empty;
+    public string MacAddress { get; set; } = string.Empty;
+    public string CustName { get; set; } = string.Empty;
+    public bool IsDisabled { get; set; }
+}
+
+public class AlertRecord
+{
+    public string Atn { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DateTime? ActionUtc { get; set; }
+    public DateTime? IssuedUtc { get; set; }
+    public DateTime? ExpiresUtc { get; set; }
+    public DateTime? AutoClearUtc { get; set; }
+    public DateTime? LastModifiedUtc { get; set; }
+}
+
+public class AlertSiteGroup
+{
+    public string SiteName { get; set; } = string.Empty;
+    public IReadOnlyList<AlertRecord> Alerts { get; set; } = Array.Empty<AlertRecord>();
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum InformerStatusResultKind
+{
+    Found,
+    Disabled,
+    Ambiguous,
+    NotFound
+}
+
+public class InformerStatusResult
+{
+    public InformerStatusResultKind Kind { get; }
+    public InformerSearchMatch? Match { get; }
+    public IReadOnlyList<AlertSiteGroup> AlertSiteGroups { get; }
+    public IReadOnlyList<InformerSearchMatch> Candidates { get; }
+
+    private InformerStatusResult(
+        InformerStatusResultKind kind,
+        InformerSearchMatch? match,
+        IReadOnlyList<AlertSiteGroup> alertSiteGroups,
+        IReadOnlyList<InformerSearchMatch> candidates)
+    {
+        Kind = kind;
+        Match = match;
+        AlertSiteGroups = alertSiteGroups;
+        Candidates = candidates;
+    }
+
+    public static InformerStatusResult Found(InformerSearchMatch match, IReadOnlyList<AlertSiteGroup> alertSiteGroups) =>
+        new(InformerStatusResultKind.Found, match, alertSiteGroups, Array.Empty<InformerSearchMatch>());
+
+    public static InformerStatusResult Disabled(InformerSearchMatch match) =>
+        new(InformerStatusResultKind.Disabled, match, Array.Empty<AlertSiteGroup>(), Array.Empty<InformerSearchMatch>());
+
+    public static InformerStatusResult Ambiguous(IReadOnlyList<InformerSearchMatch> candidates) =>
+        new(InformerStatusResultKind.Ambiguous, null, Array.Empty<AlertSiteGroup>(), candidates);
+
+    public static readonly InformerStatusResult NotFound =
+        new(InformerStatusResultKind.NotFound, null, Array.Empty<AlertSiteGroup>(), Array.Empty<InformerSearchMatch>());
 }

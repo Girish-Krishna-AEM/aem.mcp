@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using CoordinatorAgent.Models;
 
@@ -97,8 +98,39 @@ public static class ResultFormatter
 
     private static string BuildInformerSummary(JsonElement result)
     {
-        var status = result.GetProperty("status").GetString();
-        var power = result.GetProperty("powerStatus").GetString();
-        return $"Informer status: {status}, power: {power}.";
+        var kind = result.GetProperty("kind").GetString();
+
+        return kind switch
+        {
+            "Found" => BuildInformerFoundSummary(result),
+            "Disabled" => $"Informer '{GetMatchInformName(result)}' is disabled and not operational.",
+            "Ambiguous" => BuildInformerAmbiguousSummary(result),
+            "NotFound" => "No informer found matching that search.",
+            _ => "Request completed."
+        };
     }
+
+    private static string BuildInformerFoundSummary(JsonElement result)
+    {
+        var informName = GetMatchInformName(result);
+        var siteGroups = result.GetProperty("alertSiteGroups");
+        var siteCount = siteGroups.GetArrayLength();
+        var alertCount = siteGroups.EnumerateArray().Sum(site => site.GetProperty("alerts").GetArrayLength());
+
+        return alertCount == 0
+            ? $"Informer '{informName}': no alerts in the requested time range."
+            : $"Informer '{informName}': {alertCount} alert(s) across {siteCount} site(s).";
+    }
+
+    private static string BuildInformerAmbiguousSummary(JsonElement result)
+    {
+        var candidates = result.GetProperty("candidates")
+            .EnumerateArray()
+            .Select(c => $"{c.GetProperty("informName").GetString()} ({c.GetProperty("custName").GetString()}, {c.GetProperty("macAddress").GetString()})");
+
+        return $"Multiple informers match that search. Did you mean: {string.Join("; ", candidates)}? Please refine your search (e.g. by MAC address or informer ID).";
+    }
+
+    private static string GetMatchInformName(JsonElement result) =>
+        result.GetProperty("match").GetProperty("informName").GetString() ?? "unknown";
 }

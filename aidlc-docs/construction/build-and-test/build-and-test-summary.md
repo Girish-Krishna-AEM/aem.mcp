@@ -50,5 +50,33 @@ Docker Desktop was started and the full stack verified:
 - **All Tests**: ✅ Pass (89/89 unit/in-process-integration + full cross-container Docker verification, including live Census Geocoder + Nominatim calls)
 - **Ready for Operations**: Yes
 
+## FR-6 Addendum Re-Verification (2026-10-18) — Informer Search & Alerting Service
+
+### Build Status
+- **Build**: ✅ Success — `dotnet build` on both Unit 1 and Unit 2, 0 errors/warnings.
+
+### Unit Tests
+- **Unit 1**: 68/68 passing (56 prior + 12 new/changed for FR-6: `InformerApiClientTests`, `AlertsApiClientTests`, rewritten `InformerStatusModuleTests`, updated `McpServerIntegrationTests`).
+- **Unit 2**: 72/72 passing (62 prior + 10 new/changed for FR-6: rewritten `ParameterExtractorTests` informer cases, 4 new `CoordinatorIntegrationTests` informer cases).
+- **Total**: 140/140 passing.
+
+### Cross-Container Live Verification (Docker Compose, against the stub data files)
+- `docker compose build` — both images built successfully; confirmed the previously-missing `COPY data/ ./data/` step now ships the stub JSON files into the `lightning-mcp-server` image.
+- `docker compose up -d` — both containers reached `Up (healthy)`.
+- **Found (single match)**: `"status of the informer QA Informer 6"` → correct single match, 9 alerts returned under 1 site group, correctly trimmed to `atn`/`message`/5 UTC fields, summary `"Informer 'QA Informer 6': 9 alert(s) across 1 site(s)."` — confirms the default 24-hour window applies correctly (query included no time phrase) and the stub Alerts file (which doesn't vary per `pasUserId` — there's only one sample file) is read correctly regardless of which informer matched.
+- **Ambiguous (multi-match)**: `"status of the informer AACS Lakeside High School Campus"` → correctly returned all 7 real candidates for that customer from the actual stub data, with a correctly-formatted disambiguation summary.
+- **NotFound**: `"status of the informer ZZZNoSuchDeviceZZZ"` → correct `NotFound` kind and summary.
+- **Regression**: Sensor intent (`"Show diagnostics for sensor-001"`) still returns correct results — confirms FR-6 changes didn't affect other intents.
+- **Not live-tested**: the **Disabled** path — the real `data/informer/informer_list.json` stub file (as supplied) contains **zero** `isDisabled: true` records, so there is no real data to exercise this path against live. It is covered by Unit 1's mocked `InformerStatusModuleTests` and Unit 2's faked-tool-response `CoordinatorIntegrationTests` instead. Flagging this as a known gap, not a false "fully verified" claim — if a disabled test record is ever added to the stub data, re-run this specific scenario live.
+- **Cleanup**: `docker compose down` — both containers and the network removed; confirmed no leftover standalone `LightningMcpServer.exe`/`CoordinatorAgent.exe` processes afterward.
+
+### Status
+✅ Pass — FR-6 fully verified live for Found/Ambiguous/NotFound against real stub data; Disabled verified via mocked tests only (documented limitation above).
+
+## Overall Status (including FR-6)
+- **Build**: ✅ Success
+- **All Tests**: ✅ Pass — 140/140 unit/in-process-integration, plus FR-6 cross-container live verification against stub data (Found/Ambiguous/NotFound; Disabled via mocks only)
+- **Ready for Operations**: Yes
+
 ## Next Steps
-This Phase 1 POC, including the FR-4 Location Geocoding Utility addendum, is fully verified and ready for EC2 deployment via `DEPLOYMENT.md` / `unit-3/docs/ec2-deployment-guide.md`, or for the Operations phase (currently a placeholder per the AI-DLC workflow). Note: EC2 deployment should confirm outbound HTTPS access to both `geocoding.geo.census.gov` and `nominatim.openstreetmap.org` (same security-group/NACL consideration as the existing outbound access to the Lightning Pulse API).
+This POC, including the FR-4 Location Geocoding Utility and FR-6 Informer Search & Alerting Service addenda, is fully verified and ready for EC2 deployment via `DEPLOYMENT.md` / `unit-3/docs/ec2-deployment-guide.md`. Note: EC2 deployment should confirm (1) outbound HTTPS access to `geocoding.geo.census.gov` and `nominatim.openstreetmap.org` (existing FR-4 note), and (2) when FR-6 is later switched from `stub` to `live` mode, outbound access to `qa.oas.api.enqa.co` and `qa.alerts.api.enqa.co`.

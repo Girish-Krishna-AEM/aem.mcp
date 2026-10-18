@@ -62,6 +62,28 @@ builder.Services.Configure<WeatherForecastApiOptions>(options =>
 });
 builder.Services.AddHttpClient<IWeatherForecastApiClient, WeatherForecastApiClient>();
 
+// Informer-list external API configuration (base URL, timeout, stub/live switch, stub file path)
+builder.Services.Configure<InformerApiOptions>(options =>
+{
+    options.BaseUrl = builder.Configuration["INFORMER_API_BASE_URL"] ?? options.BaseUrl;
+    options.TimeoutSeconds = int.TryParse(builder.Configuration["INFORMER_API_TIMEOUT_SECONDS"], out var informerTimeout) ? informerTimeout : options.TimeoutSeconds;
+    options.DataSource = builder.Configuration["INFORMER_DATA_SOURCE"] ?? options.DataSource;
+    options.StubFilePath = builder.Configuration["INFORMER_STUB_FILE_PATH"] ?? options.StubFilePath;
+});
+builder.Services.AddHttpClient<IInformerApiClient, InformerApiClient>();
+
+// Alerts external API configuration (base URL, timeout, stub/live switch, stub file path)
+builder.Services.Configure<AlertsApiOptions>(options =>
+{
+    options.BaseUrl = builder.Configuration["ALERTS_API_BASE_URL"] ?? options.BaseUrl;
+    options.TimeoutSeconds = int.TryParse(builder.Configuration["ALERTS_API_TIMEOUT_SECONDS"], out var alertsTimeout) ? alertsTimeout : options.TimeoutSeconds;
+    options.DataSource = builder.Configuration["ALERTS_DATA_SOURCE"] ?? options.DataSource;
+    options.StubFilePath = builder.Configuration["ALERTS_STUB_FILE_PATH"] ?? options.StubFilePath;
+});
+builder.Services.AddHttpClient<IAlertsApiClient, AlertsApiClient>();
+
+builder.Services.AddMemoryCache();
+
 // Register domain modules
 builder.Services.AddScoped<IStrikeDetectionModule, StrikeDetectionModule>();
 builder.Services.AddScoped<IWeatherForecastModule, WeatherForecastModule>();

@@ -1,64 +1,47 @@
-# Code Generation Plan — Unit 2: Coordinator Agent (FR-4 Addendum: Location Geocoding Utility)
+# Code Generation Plan — Unit 2: Coordinator Agent (FR-6 Addendum: Informer Search & Alerting Service)
 
-**Source of truth**: This plan, executed exactly as written. References: `functional-design/` (domain model, business rules), `nfr-requirements/`, `nfr-design/` (patterns, logical components) under `aidlc-docs/construction/unit-2/`.
+**Source of truth**: This plan, executed exactly as written. References: `functional-design/` (BR-12–BR-14, business-logic-model addendum) under `aidlc-docs/construction/unit-2/`. NFR Requirements/Design were skipped for this addendum (no new NFRs — see `execution-plan.md` Addendum: FR-6).
 
-**Unit dependencies**: None (Unit 1 and Unit 3 are unaffected by this addendum).
+**Unit dependencies**: Depends on Unit 1's already-completed, approved `get_informer_status` tool contract (search/startDateTimeUtc/endDateTimeUtc in, `InformerStatusResult` JSON out with string `kind`). Unit 3 is unaffected.
 
-**Workspace root for application code**: `C:\aem\ai-agentic\mcp` (brownfield — modifying existing `unit-2/src/CoordinatorAgent` and `unit-2/tests/CoordinatorAgent.Tests` in place, no new project structure).
+**Workspace root for application code**: `C:\aem\ai-agentic\mcp` (brownfield — modifying existing `unit-2/src/CoordinatorAgent` and `unit-2/tests/CoordinatorAgent.Tests` in place).
 
 ## Steps
 
-### Step 1 — Domain Models (New Files)
-- [x] Create `unit-2/src/CoordinatorAgent/Models/GeocodeOutcome.cs`: `GeocodeResult` (Latitude, Longitude, MatchedAddress) and `GeocodeOutcome` (discriminated: `Resolved(GeocodeResult)` / `Ambiguous(IReadOnlyList<string> Candidates)` / `NotFound`), per `functional-design/domain-entities.md`.
-
-### Step 2 — Configuration (New File)
-- [x] Create `unit-2/src/CoordinatorAgent/Services/CensusGeocoderOptions.cs`: `BaseUrl` (default `"https://geocoding.geo.census.gov/geocoder/"`), `TimeoutSeconds` (default `10`) — mirrors `LightningPulseApiOptions`'s property-default style (Unit 1).
-
-### Step 3 — LocationGeocoder (New Files)
-- [x] Create `unit-2/src/CoordinatorAgent/Services/ILocationGeocoder.cs`: `Task<GeocodeOutcome> GeocodeAsync(string locationText, CancellationToken cancellationToken = default)`.
-- [x] Create `unit-2/src/CoordinatorAgent/Services/LocationGeocoder.cs`: implements cache-aside (`IMemoryCache`, 1hr TTL, key = lowercased+trimmed input) wrapping a call to Census Geocoder `/locations/onelineaddress` (via injected typed `HttpClient` + `IOptions<CensusGeocoderOptions>`), with a manual retry loop (3 attempts, fixed 500ms `Task.Delay`) on `HttpRequestException`/`TaskCanceledException`, mapping 0/1/>1 matches to `NotFound`/`Resolved`/`Ambiguous` per `business-rules.md` BR-3–BR-5, BR-7, BR-9.
-
-### Step 4 — Business Logic Unit Testing
-- [x] Create `unit-2/tests/CoordinatorAgent.Tests/Services/LocationGeocoderTests.cs`: mocked `HttpMessageHandler` covering single match (Resolved), multiple matches (Ambiguous with candidate list), zero matches (NotFound), timeout-then-success-on-retry, timeout-exhausts-all-3-attempts (propagates failure), and cache-hit-skips-second-HTTP-call — per NFR Requirements' mocked-only test strategy.
-
-### Step 5 — Business Logic Summary
-- [x] Create `aidlc-docs/construction/unit-2/code/location-geocoder-summary.md` documenting the new `LocationGeocoder`/`ILocationGeocoder`/`GeocodeOutcome`/`CensusGeocoderOptions` files and their responsibilities (markdown summary only, per Code Location Rules).
-
-### Step 6 — API/Service Layer Integration (Modify Existing)
-- [x] Modify `unit-2/src/CoordinatorAgent/Services/IParameterExtractor.cs`: change `ExtractParameters` return type to `Task<(bool Success, JsonElement? Parameters, string? Error)>`.
+### Step 1 — Informer Parameter Extraction (Modify Existing)
 - [x] Modify `unit-2/src/CoordinatorAgent/Services/ParameterExtractor.cs`:
-  - Add `ILocationGeocoder` constructor dependency.
-  - Delete the `KnownLocations` dictionary entirely.
-  - Make `TryExtractLocation` async, returning the `GeocodeOutcome` (explicit lat/long regex match still short-circuits with no geocoding call, per BR-2).
-  - Make `ExtractStrikeParameters` and `ExtractWeatherParameters` async; branch on `GeocodeOutcome` kind — `Resolved` continues, `Ambiguous` returns the candidate-list error string (BR-4 format), `NotFound` returns the not-found error string (BR-5 format).
-  - Add the 100-mile radius cap check in `ExtractStrikeParameters` after `TryExtractRadius` (BR-8), converting km→miles for the comparison; reject with a validation error string if exceeded.
-  - Make `ExtractParameters` async (`Task<...>`), awaiting the appropriate branch.
-- [x] Modify `unit-2/src/CoordinatorAgent/Controllers/QueryController.cs`: `await _parameterExtractor.ExtractParameters(...)` (controller method is already `async`, so this is a one-line change).
+  - Remove `InformerIdPattern` (`informer-[a-z0-9]+`) and `ZonePattern` (`zone-[a-z0-9]+`) regex fields — no longer used.
+  - Add a new `InformerSearchPhrasePattern` regex: captures the phrase following the word "informer" up to a time-window qualifier (`between`, `last N <unit>`, `yesterday`, explicit `from X to Y` range) or end of string — same capture/lookahead style as `LocationPhrasePattern` (BR-12).
+  - Rewrite `ExtractInformerParameters(string query)`: extract the search phrase; if not found, return `(false, null, "Missing required parameter: search. Please specify a customer name, informer name, MAC address, or informer ID (e.g., 'status of the informer Lakeside').")`. Otherwise call the existing `TryExtractTimeWindow(query)` (unchanged, BR-13) and convert non-null `DateTime` results to Unix epoch seconds (`new DateTimeOffset(dt, TimeSpan.Zero).ToUnixTimeSeconds()` — `TryExtractTimeWindow` already returns UTC `DateTime`s) for `startDateTimeUtc`/`endDateTimeUtc`; omit both from the parameters object when `TryExtractTimeWindow` found no time phrase. Build `new { search, startDateTimeUtc, endDateTimeUtc }` and serialize via the existing `SerializeParameters` helper (which already drops null properties via `DefaultIgnoreCondition.WhenWritingNull`).
 
-### Step 7 — API/Service Layer Unit Testing (Modify Existing + New)
-- [x] Modify `unit-2/tests/CoordinatorAgent.Tests/Services/ParameterExtractorTests.cs`: inject a mocked `ILocationGeocoder` (e.g. via a simple test double/Moq returning fixed `GeocodeOutcome.Resolved` results for "Austin, TX" / "Dallas" to preserve existing assertions), convert all test methods from `void` to `async Task` with `await`, add new test cases for: ambiguous-location error message, not-found-location error message, over-100-mile-radius-cap rejection, and confirm Weather intent also now goes through the geocoder (per functional design BR-1, applies to both Strike and Weather).
+### Step 2 — Parameter Extraction Unit Testing (Modify Existing)
+- [x] Modify `unit-2/tests/CoordinatorAgent.Tests/Services/ParameterExtractorTests.cs`: replace `ExtractInformerParameters_WithZone_ReturnsZone`/`ExtractInformerParameters_MissingBoth_ReturnsError` with tests covering: search phrase extracted from a plain query ("status of the informer Lakeside" → `search == "Lakeside"`), search phrase + explicit time range ("status of the informer Lakeside between 2026-01-01 and 2026-01-02" → `search` + both epoch params present and correctly converted), search phrase + "last N days"/"yesterday" phrasing (epoch params present), no time phrase at all (`startDateTimeUtc`/`endDateTimeUtc` both absent from the serialized JSON — confirms the "let Unit 1 default" behavior), and missing search text entirely (error message).
 
-### Step 8 — API/Service Layer Summary
-- [x] Create `aidlc-docs/construction/unit-2/code/parameter-extractor-update-summary.md` documenting the `ParameterExtractor`/`IParameterExtractor`/`QueryController` changes (markdown summary only).
+### Step 3 — Business Logic Summary
+- [x] Create `aidlc-docs/construction/unit-2/code/informer-parameter-extraction-summary.md` documenting the `ParameterExtractor` changes (markdown summary only).
 
-### Step 9 — Dependency Injection Wiring (Modify Existing)
-- [x] Modify `unit-2/src/CoordinatorAgent/Program.cs`:
-  - `builder.Services.AddMemoryCache();`
-  - `builder.Services.Configure<CensusGeocoderOptions>(options => { options.BaseUrl = builder.Configuration["CENSUS_GEOCODER_BASE_URL"] ?? options.BaseUrl; options.TimeoutSeconds = int.TryParse(builder.Configuration["CENSUS_GEOCODER_TIMEOUT_SECONDS"], out var t) ? t : options.TimeoutSeconds; });` (mirrors Unit 1's `LightningPulseApiOptions` binding style exactly — env vars, not appsettings.json sections).
-  - `builder.Services.AddHttpClient<ILocationGeocoder, LocationGeocoder>();`
+### Step 4 — Result Formatting (Modify Existing)
+- [x] Modify `unit-2/src/CoordinatorAgent/Services/ResultFormatter.cs`: rewrite `BuildInformerSummary(JsonElement result)` per BR-14 — branch on `result.GetProperty("kind").GetString()`:
+  - `"Found"`: read `match.informName`, count `alertSiteGroups[].alerts[].Length` summed across groups and the number of site groups; produce `"Informer '<informName>': <N> alert(s) across <M> site(s)."` or `"Informer '<informName>': no alerts in the requested time range."` when the total count is 0.
+  - `"Disabled"`: `"Informer '<match.informName>' is disabled and not operational."`
+  - `"Ambiguous"`: join `candidates[]` (each `informName`/`custName`/`macAddress`) into a list, e.g. `"Multiple informers match '<search>'. Did you mean: <candidate 1>; <candidate 2>? Please refine your search (e.g. by MAC address or informer ID)."` — the raw search text isn't in the tool response, so thread it through from the request in `QueryController` (see Step 6) or omit it from the message and just list candidates if threading it through adds unwarranted complexity; prefer listing candidates only, matching `BuildStrikeSummary`'s self-contained style (no other summary method references the original query text either).
+  - `"NotFound"`: `"No informer found matching that search."` (also without echoing raw search text, for the same self-contained-summary reason).
 
-### Step 10 — Documentation Generation
-- [x] Update `aidlc-docs/construction/build-and-test/build-and-test-summary.md` is NOT touched here (handled in the Build and Test stage re-run, not Code Generation) — no action in this step; listed for completeness/traceability only.
-- [x] Create `aidlc-docs/construction/unit-2/code/code-generation-summary.md` — overall summary of all files created/modified for this addendum, cross-referencing Steps 1–9.
+### Step 5 — API Layer Summary
+- [x] Create `aidlc-docs/construction/unit-2/code/informer-result-formatting-summary.md` documenting the `ResultFormatter.BuildInformerSummary` rewrite (markdown summary only).
 
-### Step 11 — Deployment Artifacts
-- [x] None required — no new environment variables are mandatory (both `CensusGeocoderOptions` fields have working defaults), no Dockerfile/compose changes needed. `DEPLOYMENT.md`/`.env.example` MAY optionally document the two new optional env vars (`CENSUS_GEOCODER_BASE_URL`, `CENSUS_GEOCODER_TIMEOUT_SECONDS`) for discoverability — included as a small addition in this step for completeness.
+### Step 6 — Integration Test Coverage (New)
+- [x] Add informer-intent test cases to `unit-2/tests/CoordinatorAgent.Tests/Integration/CoordinatorIntegrationTests.cs` (or confirm/extend its existing fake-MCP-client test harness) covering: a full "status of the informer X" query round-trip through `QueryController` with a faked `get_informer_status` tool response for each of the 4 `kind` values, asserting the expected `summary` text.
 
-## Story / Requirement Traceability
-- FR-4 (Location Geocoding Utility) in `aidlc-docs/inception/requirements/requirements.md` — Steps 1–9
-- Acceptance Criteria #7 (resolve all 3 input formats) — Steps 3, 6, 7
-- Acceptance Criteria #8 (ambiguous/not-found errors) — Steps 3, 6, 7
-- Acceptance Criteria #9 (100-mile radius cap) — Step 6, 7
+### Step 7 — Documentation Generation
+- [x] Create `aidlc-docs/construction/unit-2/code/code-generation-summary.md` — overall summary of all files created/modified for this addendum, cross-referencing Steps 1–6.
+
+### Step 8 — Deployment Artifacts
+- [x] None required — no new environment variables, no Dockerfile/compose changes (Unit 2 makes no new external calls; it only changes what parameters it sends to the already-configured Unit 1 MCP tool).
+
+## Requirement Traceability
+- FR-6 (Informer Search & Alerting Service) in `aidlc-docs/inception/requirements/requirements.md` — Steps 1, 4, 6
+- BR-12–BR-14 in `aidlc-docs/construction/unit-2/functional-design/business-rules.md` — Steps 1, 4
 
 ## Estimated Scope
-11 steps; ~8 files touched (4 new: `GeocodeOutcome.cs`, `CensusGeocoderOptions.cs`, `ILocationGeocoder.cs`, `LocationGeocoder.cs`; 4 modified: `IParameterExtractor.cs`, `ParameterExtractor.cs`, `QueryController.cs`, `Program.cs`) plus 1 new test file and 1 modified test file, plus 3 markdown summaries and an optional `.env.example`/`DEPLOYMENT.md` touch-up.
+8 steps; ~3 files touched (2 modified: `ParameterExtractor.cs`, `ResultFormatter.cs`; 1 modified/extended: `CoordinatorIntegrationTests.cs`) plus 1 modified test file (`ParameterExtractorTests.cs`), plus 3 markdown summaries.

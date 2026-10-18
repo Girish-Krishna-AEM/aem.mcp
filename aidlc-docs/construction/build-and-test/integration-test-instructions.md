@@ -14,7 +14,7 @@ Test the interaction between Unit 1 (Lightning MCP Server) and Unit 2 (Coordinat
   1. `POST /query` to Coordinator Agent with a Strike-intent query (e.g., "Is there lightning near Austin, TX?")
   2. `POST /query` with a Weather-intent query (e.g., "What's the weather in Dallas?")
   3. `POST /query` with a Sensor-intent query (e.g., "Show diagnostics for sensor-001")
-  4. `POST /query` with an Informer-intent query (e.g., "Is the horn in zone-a powered on?")
+  4. `POST /query` with an Informer-intent query (e.g., "status of the informer QA Informer 6") — as of FR-6, this is a real search+alerts lookup, not a stub; use a search term matching `data/informer/informer_list.json` (or an ambiguous/not-found term to exercise those paths)
 - **Expected Results**: Each returns HTTP 200 with `{"toolName": ..., "result": ..., "summary": ...}`, and `result` matches the shape documented in `aidlc-docs/construction/unit-1/code/mcp-tool-schemas.md`
 - **Cleanup**: `docker compose down` (or leave running if continuing to Scenario 2)
 

@@ -4,5 +4,5 @@ namespace LightningMcpServer.DomainModules;
 
 public interface IInformerStatusModule
 {
-    InformerStatus GetInformerStatus(GetInformerStatusRequest request);
+    InformerStatusResult GetInformerStatus(GetInformerStatusRequest request);
 }

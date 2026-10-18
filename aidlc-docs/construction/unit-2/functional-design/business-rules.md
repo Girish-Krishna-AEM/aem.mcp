@@ -36,3 +36,16 @@ On a timeout or transient HTTP failure calling either geocoder (Census or, when 
 
 ## BR-10: Error Message Convention
 All geocoding-related errors (ambiguous, not-found, over-cap radius) are surfaced as a single string message under the existing `{ "error": "<string>" }` response shape — no new structured response field is introduced (confirmed by user, Q2 answer A).
+
+## BR-12: Informer Search Text Extraction *(Added 2026-10-18, FR-6 addendum)*
+`ExtractInformerParameters` extracts free-text search input (matched against customer name / informer name / MAC / informer ID by Unit 1) from the phrase following the word "informer" in the query, up to a time-window qualifier ("between", "last N <unit>", "yesterday", explicit date range) or end of string — same phrase-capture style as `LocationPhrasePattern` (FR-4). If no search text can be extracted, return the existing-style missing-parameter error: `"Missing required parameter: search. Please specify a customer name, informer name, MAC address, or informer ID (e.g., 'status of the informer Lakeside')."` The prior `informerId`/`zone`-based extraction (`InformerIdPattern`/`ZonePattern`) is removed — Unit 1's new fuzzy search makes a strict `informer-XXX`/`zone-X` pattern unnecessary and inconsistent with FR-6's free-text search design.
+
+## BR-13: Informer Time Window Reuse *(Added 2026-10-18, FR-6 addendum)*
+The existing `TryExtractTimeWindow` method (already used by Strike queries for "last N minutes/hours/days", "yesterday", and explicit `from X to Y`/`between X and Y` date ranges, all converted from the user's local time zone to UTC) is reused as-is for Informer queries — no new time-parsing logic is added (per FR-6/Q7). Its `DateTime?` results are converted to Unix epoch seconds (`DateTimeOffset.ToUnixTimeSeconds()`) for the tool's `startDateTimeUtc`/`endDateTimeUtc` parameters. When `TryExtractTimeWindow` returns `(true, null, null, null)` (no time phrase present), both parameters are omitted from the tool call entirely — letting Unit 1's own BR-11 default (last 24 hours) apply, rather than Unit 2 guessing or duplicating that default.
+
+## BR-14: Informer Result Formatting *(Added 2026-10-18, FR-6 addendum)*
+`ResultFormatter.BuildInformerSummary` branches on the tool response's `kind` field (now a string — `"Found"`/`"Disabled"`/`"Ambiguous"`/`"NotFound"`, after a 2026-10-18 correction to Unit 1's `InformerStatusResultKind` enum to serialize as a string via `JsonStringEnumConverter` rather than a numeric value, for exactly this kind of downstream readability):
+- **Found**: summarize the matched informer's name and the total alert count across all site groups (e.g. `"Informer 'QA Informer 6': 3 alerts across 1 site."`, or `"...: no alerts in the requested time range."` when the count is 0 — BR-12 in `unit-1/functional-design/business-rules.md`'s "empty is not an error" convention carries through to the chat-facing summary, not just the raw JSON).
+- **Disabled**: `"Informer '<name>' is disabled and not operational."`
+- **Ambiguous**: list the candidate informers (name + customer + MAC) so the user can refine their search, mirroring FR-4's `GeocodeOutcome.Ambiguous` summary style.
+- **NotFound**: `"No informer found matching '<search text>'."`

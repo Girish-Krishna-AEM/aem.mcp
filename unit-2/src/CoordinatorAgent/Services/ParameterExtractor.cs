@@ -44,11 +44,13 @@ public class ParameterExtractor : IParameterExtractor
     private static readonly Regex SensorIdPattern = new(
         @"\b(sensor-[a-z0-9]+|[a-z]{2}-\d+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly Regex InformerIdPattern = new(
-        @"\b(informer-[a-z0-9]+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex ZonePattern = new(
-        @"\bzone[\s-]?[a-z0-9]+\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // Captures the free-text search phrase following "informer" (customer name, informer
+    // name, MAC address, or informer ID — Unit 1 matches all four fuzzily) up to a
+    // time-window qualifier or end of string. Same capture/lookahead style as
+    // LocationPhrasePattern below.
+    private static readonly Regex InformerSearchPhrasePattern = new(
+        @"\binformer[s]?\b\s*(?:named|called)?\s*([A-Za-z0-9][A-Za-z0-9.,'\-:\s]*?)(?=\s*(?:between|in\s+the\s+last|in\s+the\s+past|last\s+\d|yesterday\b|(?:from|between)\s+\d{4}-\d{2}-\d{2}|\?|$))",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // Matches the free-text location phrase so it can be sent to the geocoder.
     // Captures "near/in/at/for <location>" up to a trailing qualifier (within/over/in the last,
@@ -165,19 +167,31 @@ public class ParameterExtractor : IParameterExtractor
 
     private (bool, JsonElement?, string?) ExtractInformerParameters(string query)
     {
-        var informerMatch = InformerIdPattern.Match(query);
-        var zoneMatch = ZonePattern.Match(query);
+        var searchMatch = InformerSearchPhrasePattern.Match(query);
+        var search = searchMatch.Success ? searchMatch.Groups[1].Value.Trim().TrimEnd('?', '.', ',') : null;
 
-        if (!informerMatch.Success && !zoneMatch.Success)
+        if (string.IsNullOrWhiteSpace(search))
         {
-            _logger.LogWarning("Missing parameter: informerId or zone");
-            return (false, null, "Missing required parameter: informer_id or zone. Please specify a device (e.g., 'informer-001') or a zone (e.g., 'zone-a').");
+            _logger.LogWarning("Missing parameter: search");
+            return (false, null,
+                "Missing required parameter: search. Please specify a customer name, informer name, MAC address, or informer ID (e.g., 'status of the informer Lakeside').");
+        }
+
+        var (timeWindowSuccess, startDateTime, endDateTime, timeWindowError) = TryExtractTimeWindow(query);
+        if (!timeWindowSuccess)
+        {
+            return (false, null, timeWindowError);
         }
 
         var parameters = new
         {
-            informerId = informerMatch.Success ? informerMatch.Value : null,
-            zone = zoneMatch.Success ? zoneMatch.Value : null
+            search,
+            startDateTimeUtc = startDateTime.HasValue
+                ? new DateTimeOffset(startDateTime.Value, TimeSpan.Zero).ToUnixTimeSeconds()
+                : (long?)null,
+            endDateTimeUtc = endDateTime.HasValue
+                ? new DateTimeOffset(endDateTime.Value, TimeSpan.Zero).ToUnixTimeSeconds()
+                : (long?)null
         };
 
         return (true, SerializeParameters(parameters), null);

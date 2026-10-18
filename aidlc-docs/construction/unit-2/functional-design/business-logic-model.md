@@ -35,3 +35,23 @@ Both currently call the same private `TryExtractLocation` method in `ParameterEx
 
 ### Error Surfacing
 All three new error conditions (`Ambiguous`, `NotFound`, over-cap radius) produce a single descriptive string, consistent with the existing `{ "error": "<string>" }` convention already used throughout `ParameterExtractor`/`QueryController` (Q2 answer A — no new structured field).
+
+## Component: `ParameterExtractor.ExtractInformerParameters` *(Addendum 2026-10-18, FR-6)*
+
+### Responsibility
+Given the raw query text, extract a free-text search string and an optional UTC time window, for the (already-updated, Unit 1) `get_informer_status` tool.
+
+### Processing Flow
+1. Extract the search phrase following the word "informer" up to a time-window qualifier or end of string (BR-12). If none found, return the missing-parameter error.
+2. Call the existing `TryExtractTimeWindow(query)` (unchanged, BR-13) to resolve `(StartDateTime, EndDateTime)` as UTC `DateTime?` — handles "last N minutes/hours/days", "yesterday", and explicit `from X to Y`/`between X and Y` ranges, already converting from the user's local time zone.
+3. Convert non-null `DateTime` results to Unix epoch seconds for the tool parameters `startDateTimeUtc`/`endDateTimeUtc`; omit both if `TryExtractTimeWindow` found no time phrase (letting Unit 1 apply its own 24-hour default).
+4. Return `(true, { search, startDateTimeUtc?, endDateTimeUtc? }, null)`.
+
+### Consumers
+- **Informer intent** (`QueryController.HandleQuery` → `ParameterExtractor.ExtractParameters` → this method), unchanged tool-name mapping (`get_informer_status`).
+
+### Removed
+- `InformerIdPattern` (`informer-[a-z0-9]+`) and `ZonePattern` (`zone-[a-z0-9]+`) regexes and their associated strict-format extraction logic — replaced by the free-text search phrase (BR-12), consistent with Unit 1's fuzzy-match search design.
+
+### Result Formatting (`ResultFormatter.BuildInformerSummary`)
+Rewritten per BR-14 to branch on the tool response's `kind` field and produce a distinct, user-facing summary for each of `Found`/`Disabled`/`Ambiguous`/`NotFound` — replacing the old `status`/`powerStatus` field reads, which no longer exist in the tool's response shape.

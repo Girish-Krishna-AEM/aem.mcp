@@ -3,8 +3,8 @@
 ## Project
 - **Name**: Lightning Detection MCP Server & Coordinator Agent (POC)
 - **Type**: Greenfield
-- **Current Phase**: 🟢 CONSTRUCTION PHASE (re-opened for FR-6; 🟡 OPERATIONS PHASE EC2 deployment remains separately in-progress, see Operations section below)
-- **Current Stage**: Unit 1 (`LightningMcpServer`) Functional Design — FR-6 Informer Search & Alerting Service
+- **Current Phase**: 🟡 OPERATIONS PHASE (placeholder — FR-6 CONSTRUCTION fully complete and approved; EC2 deployment remains separately in-progress, see Operations section below)
+- **Current Stage**: FR-6 Informer Search & Alerting Service — DONE through Build and Test (140/140 unit tests + live Docker Compose verification against stub data; Disabled path verified via mocks only). No further AI-DLC stages pending for FR-6.
 
 ## Process Note (added 2026-10-08)
 - FR-5 (real daily/hourly forecast tools, commit `097ab9d`) and the initial EC2 deployment script work (commits `2c05c19`..`18e4fa2`) were implemented directly without going through AI-DLC stage gates or contemporaneous audit logging. This has been retroactively reconciled on 2026-10-08 — see `requirements.md` FR-5 and the audit.md entries dated 2026-10-08.
@@ -49,19 +49,19 @@
 ### 🟢 CONSTRUCTION PHASE (Per-Unit Loop)
 
 #### Unit 1: Lightning MCP Server (+ LightningCommon) — re-opened for FR-6 (primary owner)
-- [ ] Functional Design (NOT STARTED — next stage)
-- [ ] NFR Requirements (PENDING)
-- [ ] NFR Design (PENDING)
+- [x] Functional Design (COMPLETE — APPROVED — `InformerDirectory` component replacing `InformerStatusModule`; domain entities `InformerRecord`/`InformerSearchMatch`/`InformerSearchOutcome`/`AlertRecord`/`AlertSiteGroup`/`InformerStatusResult`; BR-1 through BR-14 covering search matching, disabled-informer short-circuit, disambiguation, site-grouped/field-trimmed alerts, 24h default time range, stub/live mode switches, 1hr list cache)
+- [x] NFR Requirements (COMPLETE — APPROVED — 10s timeout, 3 attempts/fixed 500ms backoff for live-mode HTTP calls, 1hr single-key informer-list cache, no alerts caching, IHttpClientFactory + IMemoryCache, ordinal-ignore-case substring matching — no new NuGet packages)
+- [x] NFR Design (COMPLETE — APPROVED — manual retry loop mirroring LocationGeocoder, cache-aside for informer list only, explicit stub/live branch per client, Options pattern defaulting DataSource=stub, `InformerDirectory` replacing `InformerStatusModule`)
 - [⏭️] Infrastructure Design (SKIP — FR-6 addendum: no new infra resources)
-- [ ] Code Generation (PENDING)
+- [x] Code Generation (COMPLETE — APPROVED — all 12 steps executed: new `InformerApiClient`/`AlertsApiClient`/options, rewritten `InformerStatusModule`, updated `McpTools.cs`/`ToolRegistry.cs`/`Program.cs`/`.env`/`docker-compose.yml`/`Dockerfile`; `dotnet build` 0 errors, `dotnet test` 68/68 passing)
 - *(FR-4 note: no changes were required for FR-4; `get_lightning_strikes_near_location` already accepted `latitude`/`longitude` directly. Prior-completed stages for FR-1.1–FR-1.4/FR-5 stand as-is except `get_informer_status`, now being replaced by FR-6.)*
 
 #### Unit 2: Coordinator Agent — re-opened for FR-6 (routing + time-range parsing only)
-- [ ] Functional Design (PENDING — FR-6: new Informer-alert intent in IntentClassifier.cs, thin ParameterExtractor extension reusing existing local→UTC conversion)
+- [x] Functional Design (COMPLETE — APPROVED — FR-6: `Intent.Informer`/tool-name mapping already existed, no change; `ExtractInformerParameters` rewritten to free-text search-phrase extraction (BR-12) + reuse of existing `TryExtractTimeWindow` (BR-13); `BuildInformerSummary` rewritten for the new Found/Disabled/Ambiguous/NotFound kinds (BR-14). Also includes a post-hoc correction to Unit 1's `InformerStatusResultKind` enum to serialize as a string.)
 - [⏭️] NFR Requirements (SKIP — FR-6 addendum: reuses existing time-zone/retry conventions as-is, no new external dependency in Unit 2)
 - [⏭️] NFR Design (SKIP — follows from NFR Requirements skip)
 - [⏭️] Infrastructure Design (SKIP — FR-6 addendum: no new infra resources)
-- [ ] Code Generation (PENDING — FR-6)
+- [x] Code Generation (COMPLETE — APPROVED — all 8 steps executed: `InformerSearchPhrasePattern`/`ExtractInformerParameters` rewritten, `BuildInformerSummary` rewritten for 4 kinds, tests updated + 4 new integration tests; `dotnet build` 0 errors, `dotnet test` 72/72 passing)
 - *(FR-4, COMPLETE: GeocodeOutcome model, BR-1 through BR-10, replaced hardcoded KnownLocations dictionary in ParameterExtractor.cs; 10s timeout, fixed 500ms retry backoff, 1hr unbounded cache, IHttpClientFactory, mocked-only tests; manual retry loop, IMemoryCache cache-aside, Options-pattern config mirroring Unit 1, ILocationGeocoder interface; LocationGeocoder/ILocationGeocoder/GeocodeOutcome/CensusGeocoderOptions/NominatimOptions created; ParameterExtractor/IParameterExtractor/QueryController/Program.cs/IntentClassifier.cs modified; LocationGeocoderTests.cs created, ParameterExtractorTests.cs + CoordinatorIntegrationTests.cs + IntentClassifierTests.cs updated; all 51 tests passing; Unit 1 regression-build confirmed unaffected)*
 
 #### Unit 3: Infrastructure Orchestration
@@ -74,6 +74,7 @@
 #### Build and Test (After All Units)
 - [x] Build and Test (COMPLETE — Phase 1 baseline)
 - [x] Build and Test (COMPLETE — FR-4 addendum: 89/89 unit+in-process-integration tests passing; live Docker Compose cross-container verification including real Census Geocoder + Nominatim calls; found and fixed Census-cannot-resolve-city/ZIP and Nominatim-false-ambiguity issues during live testing; exact original example query verified working end-to-end)
+- [x] Build and Test (COMPLETE — FR-6 addendum: 140/140 unit tests passing (68 Unit 1 + 72 Unit 2); live Docker Compose verification against real stub data for Found/Ambiguous/NotFound + Sensor-intent regression; Disabled path verified via mocked tests only — supplied stub data contains no `isDisabled: true` records, documented as a known gap, not silently skipped)
 
 ### 🟡 OPERATIONS PHASE
 - [~] Operations (IN PROGRESS — deploying to a real, repurposed EC2 instance `i-02f1106cb03f558e2` / `10.8.20.224` via `unit-3/scripts/deploy-ec2.sh`)

@@ -18,6 +18,14 @@ services:
       - WEATHER_FORECAST_DAILY_BY_LATLON_PATH=${WEATHER_FORECAST_DAILY_BY_LATLON_PATH:-Forecasts/v2/DailyForecast/ByLatitudeAndLongitude}
       - WEATHER_FORECAST_HOURLY_BY_LATLON_PATH=${WEATHER_FORECAST_HOURLY_BY_LATLON_PATH:-Forecasts/v1/HourlyForecast/ByLatitudeAndLongitude}
       - WEATHER_FORECAST_HOURLY_BY_SEARCH_PATH=${WEATHER_FORECAST_HOURLY_BY_SEARCH_PATH:-Forecasts/v1/HourlyForecast/BySearch}
+      - INFORMER_API_BASE_URL=${INFORMER_API_BASE_URL:-http://qa.oas.api.enqa.co}
+      - INFORMER_API_TIMEOUT_SECONDS=${INFORMER_API_TIMEOUT_SECONDS:-10}
+      - INFORMER_DATA_SOURCE=${INFORMER_DATA_SOURCE:-stub}
+      - INFORMER_STUB_FILE_PATH=${INFORMER_STUB_FILE_PATH:-data/informer/informer_list.json}
+      - ALERTS_API_BASE_URL=${ALERTS_API_BASE_URL:-http://qa.alerts.api.enqa.co}
+      - ALERTS_API_TIMEOUT_SECONDS=${ALERTS_API_TIMEOUT_SECONDS:-10}
+      - ALERTS_DATA_SOURCE=${ALERTS_DATA_SOURCE:-stub}
+      - ALERTS_STUB_FILE_PATH=${ALERTS_STUB_FILE_PATH:-data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

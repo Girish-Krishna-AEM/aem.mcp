@@ -124,15 +124,17 @@ public class ToolRegistry : IToolRegistry
             new
             {
                 name = "get_informer_status",
-                description = "Get status of a warning informer device (strobe, horn, etc.)",
+                description = "Search for an informer alerting device by customer name, informer name, MAC address, or informer ID, and get its real lightning alert history for a UTC time range (defaults to the last 24 hours if omitted)",
                 inputSchema = new
                 {
                     type = "object",
                     properties = new
                     {
-                        informerId = new { type = "string", description = "ID of the informer device" },
-                        zone = new { type = "string", description = "Zone identifier" }
-                    }
+                        search = new { type = "string", description = "Free-text search: customer name, informer name, MAC address, or informer ID (partial match)" },
+                        startDateTimeUtc = new { type = "number", description = "Start of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours." },
+                        endDateTimeUtc = new { type = "number", description = "End of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours." }
+                    },
+                    required = new[] { "search" }
                 }
             }
         };
@@ -245,8 +247,9 @@ public class ToolRegistry : IToolRegistry
     {
         var request = new GetInformerStatusRequest
         {
-            InformerId = arguments.TryGetProperty("informerId", out var id) ? id.GetString() : null,
-            Zone = arguments.TryGetProperty("zone", out var z) ? z.GetString() : null
+            Search = arguments.GetProperty("search").GetString() ?? string.Empty,
+            StartDateTimeUtc = arguments.TryGetProperty("startDateTimeUtc", out var s) ? s.GetInt64() : null,
+            EndDateTimeUtc = arguments.TryGetProperty("endDateTimeUtc", out var e) ? e.GetInt64() : null
         };
 
         var response = _informerModule.GetInformerStatus(request);

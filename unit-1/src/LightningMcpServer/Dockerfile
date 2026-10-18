@@ -31,6 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 # Copy published application
 COPY --from=builder /app/publish .
 
+# Stub data files for FR-6 (Informer Search & Alerting Service) stub/live mode switch
+COPY data/ ./data/
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1

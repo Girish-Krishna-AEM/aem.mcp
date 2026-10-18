@@ -32,3 +32,6 @@ This shape avoids overloading `GeocodeResult` with nullable ambiguous/not-found 
 ## Relationship to Existing Types
 - `ParameterExtractor.TryExtractLocation` (existing, currently returns `(double Latitude, double Longitude)?` backed by the hardcoded `KnownLocations` dictionary) is replaced by a call into the new `LocationGeocoder`, which returns a `GeocodeOutcome`.
 - No changes to `Intent.cs` or to the MCP-facing request/response models — this is purely an internal Unit 2 resolution step that happens before building the `parameters` object passed to `_mcpClient.CallToolAsync`.
+
+## FR-6 Addendum (Added 2026-10-18) — No New Unit 2 Entities
+Unlike FR-4, FR-6 introduces **no new Unit 2 domain types**. `Intent.Informer` already existed; the tool's response (`InformerStatusResult`, defined in Unit 1's `LightningCommon/DomainModels.cs`) is passed through to the caller as a raw `JsonElement` (same pattern as every other intent — `ResultFormatter` reads fields off the `JsonElement` directly via `GetProperty`/`TryGetProperty`, it does not deserialize into a Unit-2-side class). This keeps Unit 2 decoupled from Unit 1's exact C# types, consistent with the existing architecture (Unit 2 has no project reference to `LightningCommon`, per FR-4's Q2 correction).

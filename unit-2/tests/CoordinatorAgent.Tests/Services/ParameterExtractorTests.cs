@@ -312,20 +312,45 @@ public class ParameterExtractorTests
     }
 
     [Fact]
-    public async Task ExtractInformerParameters_WithZone_ReturnsZone()
+    public async Task ExtractInformerParameters_PlainSearchPhrase_ReturnsSearchNoTimeParams()
     {
-        var (success, parameters, _) = await _extractor.ExtractParameters("Is the horn in zone-a powered on?", Intent.Informer);
+        var (success, parameters, _) = await _extractor.ExtractParameters("status of the informer Lakeside", Intent.Informer);
 
         Assert.True(success);
-        Assert.Equal("zone-a", parameters!.Value.GetProperty("zone").GetString());
+        Assert.Equal("Lakeside", parameters!.Value.GetProperty("search").GetString());
+        Assert.False(parameters.Value.TryGetProperty("startDateTimeUtc", out _));
+        Assert.False(parameters.Value.TryGetProperty("endDateTimeUtc", out _));
     }
 
     [Fact]
-    public async Task ExtractInformerParameters_MissingBoth_ReturnsError()
+    public async Task ExtractInformerParameters_WithExplicitDateRange_ReturnsSearchAndEpochSeconds()
+    {
+        var (success, parameters, _) = await _extractor.ExtractParameters(
+            "status of the informer Lakeside between 2026-01-01T00:00:00 and 2026-01-02T00:00:00", Intent.Informer);
+
+        Assert.True(success);
+        Assert.Equal("Lakeside", parameters!.Value.GetProperty("search").GetString());
+        Assert.True(parameters.Value.GetProperty("startDateTimeUtc").GetInt64() > 0);
+        Assert.True(parameters.Value.GetProperty("endDateTimeUtc").GetInt64() > parameters.Value.GetProperty("startDateTimeUtc").GetInt64());
+    }
+
+    [Fact]
+    public async Task ExtractInformerParameters_WithLastNDays_ReturnsEpochSeconds()
+    {
+        var (success, parameters, _) = await _extractor.ExtractParameters("status of the informer Lakeside in the last 10 days", Intent.Informer);
+
+        Assert.True(success);
+        Assert.Equal("Lakeside", parameters!.Value.GetProperty("search").GetString());
+        Assert.True(parameters.Value.TryGetProperty("startDateTimeUtc", out _));
+        Assert.True(parameters.Value.TryGetProperty("endDateTimeUtc", out _));
+    }
+
+    [Fact]
+    public async Task ExtractInformerParameters_MissingSearch_ReturnsError()
     {
         var (success, parameters, error) = await _extractor.ExtractParameters("What is the device status?", Intent.Informer);
 
         Assert.False(success);
-        Assert.Contains("informer_id", error);
+        Assert.Contains("search", error);
     }
 }

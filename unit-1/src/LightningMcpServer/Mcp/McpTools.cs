@@ -89,16 +89,18 @@ public static class McpTools
         });
     }
 
-    [McpServerTool(Name = "get_informer_status"), Description("Get status of a warning informer device (strobe, horn, etc.)")]
-    public static InformerStatus GetInformerStatus(
+    [McpServerTool(Name = "get_informer_status"), Description("Search for an informer alerting device by customer name, informer name, MAC address, or informer ID, and get its real lightning alert history for a UTC time range (defaults to the last 24 hours if omitted)")]
+    public static InformerStatusResult GetInformerStatus(
         IInformerStatusModule informerModule,
-        [Description("ID of the informer device")] string? informerId = null,
-        [Description("Zone identifier")] string? zone = null)
+        [Description("Free-text search: customer name, informer name, MAC address, or informer ID (partial match)")] string search,
+        [Description("Start of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours.")] long? startDateTimeUtc = null,
+        [Description("End of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours.")] long? endDateTimeUtc = null)
     {
         return informerModule.GetInformerStatus(new GetInformerStatusRequest
         {
-            InformerId = informerId,
-            Zone = zone
+            Search = search,
+            StartDateTimeUtc = startDateTimeUtc,
+            EndDateTimeUtc = endDateTimeUtc
         });
     }
 }

@@ -24,6 +24,14 @@ public class McpServerIntegrationTests : IAsyncLifetime
                 {
                     services.RemoveAll<ILightningPulseApiClient>();
                     services.AddSingleton<ILightningPulseApiClient>(new FakeLightningPulseApiClient());
+
+                    // Stub file paths default to relative paths resolved against the running
+                    // process's working directory, which is the test host's bin output folder
+                    // here (not the repo root) — override to the real repo-root stub files.
+                    services.Configure<InformerApiOptions>(o =>
+                        o.StubFilePath = LightningMcpServer.Tests.TestPaths.ResolveRepoRootPath("data/informer/informer_list.json"));
+                    services.Configure<AlertsApiOptions>(o =>
+                        o.StubFilePath = LightningMcpServer.Tests.TestPaths.ResolveRepoRootPath("data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json"));
                 });
             });
         _client = _factory.CreateClient();
@@ -242,7 +250,7 @@ public class McpServerIntegrationTests : IAsyncLifetime
                 name = "get_informer_status",
                 arguments = new
                 {
-                    informerId = "informer-001"
+                    search = "QA Informer 6"
                 }
             }
         };
@@ -256,7 +264,7 @@ public class McpServerIntegrationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("status", content);
+        Assert.Contains("kind", content);
     }
 
     [Fact]
