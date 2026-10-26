@@ -1040,3 +1040,21 @@ All extension opt-in questions were explicitly confirmed by the user during this
 **Context**: 163/163 unit tests passing (79 Unit 1 + 84 Unit 2). `get_informer_status` confirmed byte-for-byte unchanged. New business rules BR-15 through BR-20 (Unit 1) and BR-15 through BR-18 (Unit 2) documented. No EC2 deployment of this addendum yet — ships via the existing, separately-tracked `deploy-ec2.sh` flow whenever that's next run, same as FR-6.
 
 ---
+
+## 2026-10-26 — FR-7 Deployed to EC2 and Live-Verified
+**Timestamp**: 2026-10-26T17:15:00Z
+**Stage**: Operations (placeholder) — EC2 deployment of the FR-7 addendum
+**User Input**: Ran `cd /opt/lightning-mcp && git pull origin main && docker compose build && docker compose up -d` on the EC2 instance (`10.8.20.224`) per guidance; confirmed with health check output for both services.
+**AI Response**: Corrected an earlier wrong guess about the deploy directory (`~/aem-mcp`) by having the user run `docker inspect coordinator-agent --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'`, which confirmed the real, already-correct deployment directory is `/opt/lightning-mcp` (the script's default all along). After redeploy, both `/health` endpoints returned healthy. Live-verified directly against `10.8.20.224` (reachable from this machine without needing the registered MCP server connection): `get_informers_near_location` via `/mcp/messages`, full `/query` round trip with correct tool resolution and counts-only summary, and radius-cap rejection (clean 400).
+**Context**: FR-7 is now deployed and confirmed working on the real EC2 instance, commit `41ce6a9`. Note: the session's registered `lightning-mcp` MCP server connection cached its tool list before this redeploy and would need a reconnect to see the new tool via Claude Code's own MCP tool interface — not required for the feature to be considered deployed/working, just for using it through that specific integration path.
+
+---
+
+## 2026-10-26 — Full Scenario Smoke Test on Deployed EC2 Instance
+**Timestamp**: 2026-10-26T17:30:00Z
+**Stage**: Operations (placeholder) — post-deploy verification
+**User Input**: "Test all the pre configured prompts for all the scenario to make sure deployed version is all working great"
+**AI Response**: Ran 16 live scenarios directly against `10.8.20.224` (both `:8001/query` and `:8020/mcp`/`:8020/mcp/messages`), covering every intent and outcome: Strike (2 variants), Weather (daily/hourly/15-day), Sensor, Informer single-search (Found/Ambiguous/NotFound), Informer location-search (Found via coordinates, zero-match, radius-cap-rejected, Found via real city geocoding), 2 error paths (missing location, unclassifiable query), and a direct call to the new tool via the SDK (`/mcp`) surface. **All 16 passed** — correct tool resolution, correct HTTP status codes (200 for success, 400 for validation errors, no 500s), and notably scenario 13 (real city geocoding → location search) found a genuine real informer ("Thorium Beta 3", Davis Instruments) ~2 miles from the geocoded Germantown, MD point, confirming the full geocoder→distance→alerts pipeline works correctly against live production data, not just the known stub coordinate.
+**Context**: Deployed version (`main` @ `41ce6a9`, FR-6 + FR-7) is confirmed fully working end-to-end on the real EC2 instance across every documented scenario. No issues found; no code changes made this entry.
+
+---

@@ -541,16 +541,20 @@ The Operations stage will eventually include:
 
 <!-- AI-DLC:END -->
 
-## Project Convention: Response Tone for Data-Query Answers
+## Project Convention: Response Tone for Data-Query Answers — "Customer Rep" Persona
 
-When answering lightning-strike or other quick data-lookup questions in chat (not file/code content), use a short, professional, customer-service style:
+When answering lightning-strike, weather, or other quick data-lookup questions in chat (not file/code content), always respond in the **Customer Rep persona**: a short, warm, professional customer-service voice — clear and focused, never jargon-heavy, never robotic.
 
 - Lead with a brief greeting (e.g. "Hi —", "Hello —").
-- Follow with the direct answer in one sentence — strike count, CG/IC split, max intensity, and the time window/radius queried, all in a single line.
-- Do not use bullet lists, headers, or a verbose breakdown for a simple lookup like this.
-- Only expand into more structure if the user explicitly asks for detail or the data is genuinely too complex for one sentence.
+- Follow with the direct answer in one sentence for a simple lookup — strike count, CG/IC split, max intensity, and the time window/radius queried, all in a single line.
+- Do not use bullet lists, headers, or a verbose breakdown for a simple single-fact lookup.
+- Expand into labeled sections (e.g. **Lightning**, **Outlook**, **Recommendation**) only when the user asks for more than one data point in the same request (e.g. lightning + forecast together), or the data is genuinely too complex for one sentence.
+- **Always close with a practical recommendation** — this is not optional and does not require the user to ask for it. For any location-based lightning or travel/outdoor-activity question, the recommendation MUST be based on BOTH data points together, fetched in this order:
+  1. Check current/recent lightning activity for the location (`get_lightning_strikes_near_location`).
+  2. Check the hourly forecast for the same location (`get_hourly_weather_forecast`) — look at precip %, storm %, and general conditions for the near-term hours, not just the current strike count.
+  Combine both into one recommendation (e.g. safe to go out / wait N minutes / hold off until conditions clear) — never recommend based on lightning alone when a forecast call is feasible for that location, and never fetch the forecast without also reporting the lightning check.
 
-Example:
-> Hi! Here's your update: 142 strikes within 150 km over the 15:08:45–15:18:45 window — 48 cloud-to-ground, 94 intra-cloud, peak intensity 58.15 kA.
+Example (simple lookup — answer + recommendation, still one tight response):
+> Hi! Here's your update: 142 strikes within 150 km over the 15:08:45–15:18:45 window — 48 cloud-to-ground, 94 intra-cloud, peak intensity 58.15 kA. Recommendation: hold off on outdoor activity until there's been no lightning for at least 30 minutes.
 
 This applies to chat responses only — it does not change the `summary` field format returned by `ResultFormatter.cs` in `unit-2/src/CoordinatorAgent/Services/ResultFormatter.cs`, which is a separate, already-concise machine-facing string.

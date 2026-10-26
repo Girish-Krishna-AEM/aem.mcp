@@ -1,65 +1,73 @@
-# Session Handoff — 2026-10-16T00:45:00Z
+# Session Handoff — 2026-10-26T18:15:00Z
 
 ## Goal
-Implement FR-6 (Informer Search & Alerting Service). Requirements + Workflow Planning approved; next step is Unit 1 (`LightningMcpServer`) Functional Design. Separately, EC2 Operations deployment connectivity appears resolved but root cause unconfirmed.
+FR-7 "Multi-Informer Location Search" feature designed/built/tested/deployed to EC2 and verified; then iterated a "Customer Rep" chat-response persona (always recommend, always combine lightning + hourly forecast) into `CLAUDE.md`. Session now closing.
 
 ## Next actions (literal, copy-pasteable)
-1. Resume AI-DLC: read `aidlc-docs/aidlc-state.md` and last 20 lines of `aidlc-docs/audit.md`.
-2. Load `.aidlc-rule-details/construction/functional-design.md` plus `aidlc-docs/inception/requirements/requirements.md` FR-6 section.
-3. Execute Unit 1 Functional Design for FR-6: define data models (search-match result, disambiguation candidate list, trimmed/grouped alert record) and business rules (fuzzy match on 4 fields, disabled-informer short-circuit, multi-match disambiguation, no-match/no-alerts messaging).
-4. Present the standardized 2-option completion message (Request Changes / Continue to Next Stage) per `functional-design.md` — do not use a 3-option menu.
-5. On approval, continue to Unit 1 NFR Requirements → NFR Design → Code Generation, then Unit 2 Functional Design → Code Generation, then Build and Test (see `aidlc-docs/inception/plans/execution-plan.md` Addendum: FR-6 for the full sequence).
+1. Decide on committing the persona convention edit to `CLAUDE.md` (currently uncommitted, user was asked, no answer given before close):
+   `cd C:\aem\ai-agentic\mcp && git add CLAUDE.md && git commit -m "Codify Customer Rep persona + always-recommend convention" && git push origin main`
+2. If direct MCP tool access to the EC2 `lightning-mcp` server is wanted (vs. raw curl), reconnect/restart that MCP server registration in Claude Code so it picks up the new `get_informers_near_location` tool (its cached tool list predates the redeploy).
+3. Check whether local Docker Compose containers are still running on this machine and stop if not needed: `cd C:\aem\ai-agentic\mcp && docker compose ps` then `docker compose down` if so.
 
 ## Context & Discovery
-- User requested a real Informer search+alerts feature; existing `get_informer_status` MCP tool (`unit-1/src/LightningMcpServer/DomainModules/InformerStatusModule.cs`) was found to be fully randomized stub data, unrelated in shape to the new requirement.
-- Inspected `data/informer/informer_list.json` (520KB, many informers, several customers have multiple informers — duplicate-match risk) and `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json` (alerts nested under multiple named sites `r[].nm`, each with an `a[]` alert array with fields `atn`/`m`/5 UTC timestamp fields).
-- Checked `.env` for existing base-URL env var naming convention (`LIGHTNING_PULSE_API_BASE_URL`, `WEATHER_FORECAST_API_BASE_URL`) to match for new `INFORMER_API_BASE_URL`/`ALERTS_API_BASE_URL`.
-- Requirements gathered via a 9-question clarification file, then one follow-up clarification question (Q8 disabled-informer behavior was genuinely ambiguous between two code paths) — both fully answered.
-- Separately, discovered via `claude mcp list` that the `lightning-mcp` MCP server (`http://10.8.20.224:8020/mcp`, EC2 private IP) now shows Connected — a change from the 2026-10-08 audit log's "blocked by IAM-denied security-group change" state. User confirmed this is the correct live endpoint.
+- Started by verifying `ALERTS_DATA_SOURCE` stub/live switch pre-deploy: found running local containers were stale (stub) vs `.env` (live) — fixed via `--force-recreate`, confirmed both modes work against the real `qa.alerts.api.enqa.co` endpoint.
+- Built FR-7 via Plan Mode: 2 parallel Explore agents (Unit 1 data model incl. stub-data lat/lon reality check; Unit 2 query flow) → 1 Plan agent → 4 AskUserQuestion decisions (all "Recommended" accepted) → written plan approved via ExitPlanMode → implemented.
+- During testing, found and fixed a real pre-existing bug: `IntentClassifier`'s Informer regex (`\binformer\b`) never matched plural "informers" (word-boundary fails mid-word on trailing "s") — natural phrasing like "find informers near X" silently failed to classify. Fixed to `\binformers?\b`.
+- EC2 deploy-path confusion: initially inferred `~/aem-mcp` from shell history (wrong); confirmed the real path via `docker inspect coordinator-agent --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'` → `/opt/lightning-mcp` (the script's default all along). Lesson: verify against running-system ground truth, not shell history alone.
+- Ran a 16-scenario full smoke test directly against the live EC2 instance (`10.8.20.224`) covering every intent/outcome — all 16 passed, including the new location-search modes and a real-geocoding case that found a genuine nearby informer.
+- Persona conventions were established iteratively through live user queries (Pampa TX, Plainview TX lightning+forecast checks) and then explicitly requested to be codified as a standing rule.
 
 ## Files touched
-- `aidlc-docs/aidlc-state.md` — current stage updated to Unit 1 Functional Design (FR-6); EC2 connectivity resolution noted; Stage Progress rows added for Unit 1/Unit 2 FR-6 tracking.
-- `aidlc-docs/audit.md` — appended: EC2 connectivity confirmation + `lightning-mcp-local` registration; FR-6 requirements request/questions/answers/clarification/approval; FR-6 Workflow Planning approval.
-- `aidlc-docs/inception/requirements/requirements.md` — added `FR-6: Informer Search & Alerting Service` section.
-- `aidlc-docs/inception/requirements/requirement-verification-questions.md` — 9 questions, all answered by user.
-- `aidlc-docs/inception/requirements/requirement-verification-clarification-questions.md` — new file, 1 follow-up question, answered.
-- `aidlc-docs/inception/plans/execution-plan.md` — added "Addendum: FR-6" section (phases to execute/skip, rationale, success criteria).
-- `data/informer/informer_list.json` — new, QA stub data for informer search (contains real colleague emails and `pasUserSecreteKey` GUIDs — committed as-is, see Decisions).
-- `data/informer/salesforce_oas_0014000000gGR2bAAG.2050.json` — new, QA stub alerts data.
-- `session.md` — this handoff.
+- `unit-1/src/LightningCommon/DomainModels.cs` — added `Latitude`/`Longitude`/`Radius` to `InformerRecord`
+- `unit-1/src/LightningCommon/GeoDistanceUtils.cs` (new) — shared Haversine distance utility, extracted from `StrikeDetectionModule`
+- `unit-1/src/LightningCommon/InformerLocationModels.cs` (new) — request/response/match types for location search
+- `unit-1/src/LightningMcpServer/DomainModules/{IInformerStatusModule,InformerStatusModule,StrikeDetectionModule}.cs` — new `GetInformersNearLocationAsync` with parallel fan-out; Strike module now calls shared distance utility
+- `unit-1/src/LightningMcpServer/Mcp/{McpTools,ToolRegistry}.cs` — registered new `get_informers_near_location` tool on both MCP surfaces
+- `unit-1/tests/...` — `GeoDistanceUtilsTests.cs` (new), extended `InformerStatusModuleTests.cs`, both integration test files (7-tool count, new tool coverage)
+- `unit-2/src/CoordinatorAgent/Services/{ParameterExtractor,IntentClassifier,ResultFormatter}.cs` — location-mode extraction, plural-informer regex fix, `BuildInformerListSummary`
+- `unit-2/src/CoordinatorAgent/Controllers/QueryController.cs` — `ResolveInformerToolName` (mirrors existing `ResolveWeatherToolName` pattern)
+- `unit-2/tests/...` — `ResultFormatterTests.cs` (new, first-ever for that class), extended `ParameterExtractorTests.cs`, `IntentClassifierTests.cs`, `CoordinatorIntegrationTests.cs`
+- `aidlc-docs/aidlc-state.md`, `aidlc-docs/audit.md` — full FR-7 addendum, EC2 deploy-path correction, deploy + smoke-test entries
+- `aidlc-docs/construction/unit-{1,2}/functional-design/business-rules.md` — new BR-15 through BR-20 (Unit 1), BR-15 through BR-18 (Unit 2)
+- `CLAUDE.md` — **uncommitted**: Customer Rep persona + always-recommend + always-combine-lightning-and-forecast convention added to "Response Tone for Data-Query Answers" section
+- `~/.claude/.../memory/feedback_customer_rep_persona_always_recommend.md` (new) + `project_lightning_poc_phase1_inception_complete.md` (refreshed) + `MEMORY.md` index — cross-session memory updates
 
 ## External Systems & Credentials
-- EC2 instance `i-02f1106cb03f558e2`, public IP `54.91.14.149`, private IP `10.8.20.224` — `lightning-mcp` MCP server config now points at `http://10.8.20.224:8020/mcp` and connects successfully.
-- AWS profile `qa` — IAM-denied from modifying security groups (`AEMDeniesDevelopers` policy); drafted SG ingress rule (TCP 8020/8001, VPN range + public IP) still not confirmed as the thing that fixed connectivity.
-- Real endpoints for FR-6 (currently off-hours-unavailable, to be wired behind a `stub`/`live` config switch): `http://qa.oas.api.enqa.co/api/oas/Informer/v1/GetInformers`, `http://qa.alerts.api.enqa.co/api/alerts/v1/ByUserIdAndTimeRange`.
-- GitHub repo (public): `github.com/Girish-Krishna-AEM/aem.mcp`.
-- Local-only Claude Code MCP config (not in repo): second server `lightning-mcp-local` → `http://localhost:8020/mcp`, added this session for side-by-side EC2/local querying.
+- GitHub: `github.com/Girish-Krishna-AEM/aem.mcp` (public), pushed commit `41ce6a9` on `main`
+- EC2 instance: `i-02f1106cb03f558e2` / `10.8.20.224`, deployed at `/opt/lightning-mcp`, user `ec2-user`; containers `lightning-mcp-server` (:8020) and `coordinator-agent` (:8001), both healthy as of last check
+- Real upstream QA APIs (all reachable from both local and EC2 as of this session): `qa.alerts.api.enqa.co`, `qa.oas.api.enqa.co`, `qa.lxneartime.api.enqa.co` (lightning pulse), `stg.en.ods.forecasts.web.enstg.co` (weather forecast)
+- Local Docker Compose stack (`docker-compose.yml`) — may still be running on this machine, see Next Actions #3
 
 ## Decisions
-- FR-6 replaces `get_informer_status`'s tool contract entirely rather than adding a new tool name — prior contract was pure random stub with no real consumers.
-- `INFORMER_DATA_SOURCE`/`ALERTS_DATA_SOURCE` = `stub`|`live` is an explicit config switch per endpoint — no automatic fallback-on-failure between stub and live in production code paths.
-- Search matching is fuzzy/partial, case-insensitive, across all 4 fields (`custName`/`informName`/`macAddress`/`informId`).
-- Disabled informers always appear in search matches; if the one ultimately selected is disabled, skip the alerts call and report "disabled, not operational" instead.
-- Multi-match search results in a disambiguation pick-list shown to the user (reusing the FR-4 ambiguous-location pattern) — no auto-pick or auto-aggregate-all.
-- Alerts response stays grouped by site name (`r[].nm`), not flattened.
-- Per-alert response is trimmed to `atn`, `m`, and all 5 UTC timestamp fields (`actutc`/`issutc`/`exputc`/`acutc`/`lmutc`) — all other upstream fields dropped.
-- Unit 2 reuses its existing local→UTC time-range parsing as-is; no new NFRs introduced in Unit 2 for this feature (all new external-API NFRs live in Unit 1).
-- User Stories stage skipped for FR-6, consistent with the FR-4/FR-5 precedent (backend/internal feature) — user explicitly approved this.
-- Committed `data/informer/*` stub files as-is (unredacted) to the public repo — user explicitly confirmed this QA data (real emails, GUID-shaped secret keys) is acceptable to commit after being flagged.
+- New dedicated `get_informers_near_location` tool (not an overload of `get_informer_status`) — keeps the existing single-search contract byte-for-byte frozen
+- 100-mile radius cap + nearest-25 truncation, reusing Unit 2's existing Strike-intent cap constants
+- Disabled informers included in location-search results but never alerts-queried (mirrors existing single-search short-circuit)
+- Response carries counts only (`alertCount`/`siteCount`/`distanceMiles`), never full per-alert detail — token efficiency
+- Parallel fan-out happens server-side in Unit 1 (one Unit2→Unit1 call); Unit 2 never makes N separate MCP calls
+- One informer's Alerts-API failure during fan-out doesn't fail the whole request (reports 0 counts + logs a warning)
+- Real EC2 deploy directory is `/opt/lightning-mcp`, confirmed via `docker inspect` label — not `~/aem-mcp`
 
 ## Assumptions (unverified)
-- The mechanism behind the EC2 connectivity fix (VPN routing to the private IP vs. an applied security-group rule) was not re-diagnosed — if it was VPN-dependent, disconnecting from VPN may break it again.
-- `pasUserSecreteKey` values in the stub data are assumed non-live/non-sensitive based on the user's confirmation, not independently verified against the real system.
+- New tool's `radiusUnit` defaults to `"miles"` (vs. Strike's `"km"` default) — a deliberate but non-forced judgment call; could be changed to `"km"` for stricter consistency with Strike if that ever becomes a problem
+- `LooksLikeLocationMode` (location phrase + radius phrase both present) may have untested edge cases beyond what the new test suite covers
+
+## Rejected approaches
+- Overloading `get_informer_status` with optional lat/lon params — rejected to avoid a dual-shape response contract and to keep BR-13 frozen
+- N separate parallel Unit2→Unit1 MCP calls (one per informer) — rejected in favor of single-call, server-side fan-out in Unit 1
 
 ## Environment
-- Branch: `main`. Working tree had the FR-6 doc changes + new `data/` directory staged for commit at session end (see commit hash below once created).
-- `lightning-mcp-local` MCP server is registered in local Claude Code config but will show "Failed to connect" until a local `docker compose up` is run.
+- Branch `main`, in sync with `origin/main` at commit `41ce6a9` (FR-7 pushed and merged)
+- `CLAUDE.md` has uncommitted local changes (persona convention) — not yet pushed
+- This session's bash shell had `INFORMER_DATA_SOURCE`/`ALERTS_DATA_SOURCE` accidentally exported as `stub` at one point mid-session (from an earlier `VAR=x cmd` prefix leaking into the persistent shell) — if reusing this exact terminal, run `unset INFORMER_DATA_SOURCE ALERTS_DATA_SOURCE` before any `docker compose` command to avoid silently overriding `.env`
 
 ## Rollback point
-- Last commit before this session's changes: `abd911e` ("Log EC2 security-group connectivity blocker in AI-DLC docs").
-- This session's doc + stub-data changes are committed as `718b115` ("Add FR-6 Informer Search & Alerting Service requirements/plan, confirm EC2 connectivity") on `main`. Not yet pushed to remote — confirm with user before pushing.
+Commit `41ce6a9` on `main` (pushed to GitHub) — last known-good, fully tested and EC2-deployed state before the uncommitted `CLAUDE.md` persona edit
+
+## Open questions (blocked on user)
+- Whether to commit + push the `CLAUDE.md` persona convention update to GitHub — asked, session closed before an answer was given
 
 ## Risks/watch-items
-- `data/informer/informer_list.json` (520KB) now permanently contains real colleague emails and GUID-shaped secret keys in public repo history.
-- EC2 connectivity root cause unconfirmed — re-verify `claude mcp list` shows `lightning-mcp` Connected at the start of next session before relying on it.
-- FR-6 implementation (Unit 1 Functional Design onward) has not started — no code changes yet, only requirements/planning docs.
+- `CLAUDE.md` persona edits are local-only — will be lost on a hard reset/fresh clone if not committed
+- Local Docker containers may be left running on this machine
+- The session's registered `lightning-mcp` MCP server connection has a stale (pre-redeploy) tool list — doesn't show `get_informers_near_location` for direct MCP tool use until reconnected
+- Known pre-existing gap (unaffected by FR-7): FR-6's Disabled-informer short-circuit path is still only covered by mocked tests — no real `isDisabled: true` records exist in the stub data
