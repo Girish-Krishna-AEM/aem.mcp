@@ -136,6 +136,25 @@ public class ToolRegistry : IToolRegistry
                     },
                     required = new[] { "search" }
                 }
+            },
+            new
+            {
+                name = "get_informers_near_location",
+                description = "Find informer alerting devices within a radius (miles or km, max 100 miles) of a geographic location, and get alert/site counts for each (nearest 25 returned if more match). For full per-alert detail on one specific informer, use get_informer_status instead.",
+                inputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        latitude = new { type = "number", description = "Latitude of the location" },
+                        longitude = new { type = "number", description = "Longitude of the location" },
+                        radius = new { type = "number", description = "Search radius" },
+                        radiusUnit = new { type = "string", description = "Unit of radius (miles or km)" },
+                        startDateTimeUtc = new { type = "number", description = "Start of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours." },
+                        endDateTimeUtc = new { type = "number", description = "End of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours." }
+                    },
+                    required = new[] { "latitude", "longitude", "radius" }
+                }
             }
         };
 
@@ -157,6 +176,7 @@ public class ToolRegistry : IToolRegistry
                 "get_hourly_weather_forecast" => HandleHourlyWeatherForecast(arguments),
                 "get_sensor_diagnostics" => HandleSensorDiagnostics(arguments),
                 "get_informer_status" => HandleInformerStatus(arguments),
+                "get_informers_near_location" => HandleInformersNearLocation(arguments),
                 _ => throw new ArgumentException($"Unknown tool: {toolName}")
             };
 
@@ -253,6 +273,23 @@ public class ToolRegistry : IToolRegistry
         };
 
         var response = _informerModule.GetInformerStatus(request);
+        var json = JsonSerializer.Serialize(response, _jsonOptions);
+        return JsonDocument.Parse(json).RootElement;
+    }
+
+    private JsonElement HandleInformersNearLocation(JsonElement arguments)
+    {
+        var request = new GetInformersNearLocationRequest
+        {
+            Latitude = arguments.GetProperty("latitude").GetDouble(),
+            Longitude = arguments.GetProperty("longitude").GetDouble(),
+            Radius = arguments.GetProperty("radius").GetDouble(),
+            RadiusUnit = arguments.TryGetProperty("radiusUnit", out var ru) ? ru.GetString() ?? "miles" : "miles",
+            StartDateTimeUtc = arguments.TryGetProperty("startDateTimeUtc", out var s) ? s.GetInt64() : null,
+            EndDateTimeUtc = arguments.TryGetProperty("endDateTimeUtc", out var e) ? e.GetInt64() : null
+        };
+
+        var response = _informerModule.GetInformersNearLocationAsync(request).GetAwaiter().GetResult();
         var json = JsonSerializer.Serialize(response, _jsonOptions);
         return JsonDocument.Parse(json).RootElement;
     }

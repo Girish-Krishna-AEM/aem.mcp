@@ -1018,3 +1018,25 @@ All extension opt-in questions were explicitly confirmed by the user during this
 **Context**: `aidlc-state.md` updated: FR-6 addendum marked fully complete across all phases.
 
 ---
+
+## 2026-10-26 — Ad-hoc: ALERTS_DATA_SOURCE stub/live Pre-Deploy Verification
+**Timestamp**: 2026-10-26T15:30:00Z
+**Stage**: Ad-hoc verification (post-FR-6, pre-EC2-deploy; no AI-DLC stage re-entered — no code changes)
+**User Input**: "I want to make sure ALERTS_DATA_SOURCE from stub/live is working as expected with no issue, before deploy this to ec2 instance"
+**AI Response**: Found the running local containers were stale (`ALERTS_DATA_SOURCE=stub`/`INFORMER_DATA_SOURCE=stub` baked in at last start) even though `.env` had already been updated to `live` for both — a drift that would have gone unnoticed until EC2. Verified via live Docker Compose recreation (`lightning-mcp-server`) against the real endpoints, per [[project_live_api_verification_required]]:
+- **Live mode**: Picked a real informer (`Tampa International Airport`, informId 2050, `pasUserId=salesforce_oas_0014000000gGR2bAAG.2050` — matches the FR-6 stub filename, confirming it's real stub-derived data) and called `get_informer_status` with `ALERTS_DATA_SOURCE=live`. Confirmed via container logs and a direct host `curl` of the same URL that the real `qa.alerts.api.enqa.co` endpoint returns `HTTP 200 {"r":[],"c":200}` for this user/range, and the app correctly maps that to `alertSiteGroups:[]` with no exception — i.e., the live HTTP call, query-string construction, and empty-response mapping all work correctly end-to-end. No real alert data exists for any of 5 sampled stub-derived `pasUserId`s in the QA alerts environment, so the non-empty live-mapping path was not observed live (only via existing mocked `AlertsApiClientTests`), but the connectivity/plumbing is confirmed sound.
+- **Stub mode regression**: Recreated with `ALERTS_DATA_SOURCE=stub`, re-ran the same search — correctly returned real stub alert content (site-grouped, field-trimmed), confirming the switch itself (not just one branch) works.
+- **Final state restored to `.env` as-is** (`ALERTS_DATA_SOURCE=live`, `INFORMER_DATA_SOURCE=live` — the intended EC2 config): re-verified end-to-end, both the live informer-list call and live alerts call succeeded on first attempt (no retries triggered) with the real APIs.
+- Also ran `dotnet test --filter AlertsApiClientTests` (4/4 passing: live-mode mapping, retry-then-succeed, retry-exhausted-throws, stub-mode) to confirm the unit-level contract wasn't regressed.
+**Context**: No code changes made. This closes the pre-deploy confidence gap the user asked about; EC2 deployment of the current code (`.env`-equivalent config) can proceed. Known pre-existing gap carried over unchanged: no real `isDisabled:true` stub records exist, so the Disabled short-circuit path remains mocked-test-only (see FR-6 Build and Test entry, 2026-10-18).
+
+---
+
+## 2026-10-26 — FR-7: Multi-Informer Location Search (Plan Mode, Code Generation, Build and Test)
+**Timestamp**: 2026-10-26T16:00:00Z
+**Stage**: Plan Mode (ad-hoc, not a formal Requirements Analysis cycle) → Code Generation → Build and Test, both units
+**User Input**: "Before proceeding further does the input prompt takes only 1 informer at a time or list of Informer. 0) Continue to maintain 1 informer based query - Should continue to work 1) I would like consider list of informers 2) If I give a location like City, State or lat/lon and around like 10 miles for example - Gather list of informers and call the alerts api for efficency may calling parallel would be great. 3) Make sure all these communication between the token efficent 4) Make sure code works as expected"
+**AI Response**: Entered Plan Mode. Ran 2 parallel Explore agents (Unit 1 informer/alerts data model + stub-data lat/lon reality check; Unit 2 query/geocoding flow) followed by 1 Plan agent to draft an implementation plan, then spot-verified every cited file/line/signature directly before finalizing. Asked 4 clarifying questions via AskUserQuestion (tool shape: new dedicated tool vs. overload; fan-out cap; disabled-informer handling; response detail level) — all 4 "Recommended" options accepted. Wrote and got approval on a detailed plan (`get_informers_near_location` new tool, 100-mile/25-informer cap, disabled-included-but-skipped, counts-only response). Implemented across both units (see `aidlc-state.md` FR-7 addendum summary for full file-level detail), found and fixed a real pre-existing classifier bug (plural "informers" didn't match the singular-only regex) during testing, and fully live-verified via Docker Compose (both MCP tool surfaces, radius-cap rejection, existing single-search regression, full `/query` end-to-end).
+**Context**: 163/163 unit tests passing (79 Unit 1 + 84 Unit 2). `get_informer_status` confirmed byte-for-byte unchanged. New business rules BR-15 through BR-20 (Unit 1) and BR-15 through BR-18 (Unit 2) documented. No EC2 deployment of this addendum yet — ships via the existing, separately-tracked `deploy-ec2.sh` flow whenever that's next run, same as FR-6.
+
+---

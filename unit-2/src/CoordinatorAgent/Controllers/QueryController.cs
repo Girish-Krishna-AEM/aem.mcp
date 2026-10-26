@@ -60,9 +60,12 @@ public class QueryController : ControllerBase
             return BadRequest(new { error });
         }
 
-        var toolName = intent.Value == Intent.Weather
-            ? ResolveWeatherToolName(parameters.Value)
-            : ToolNames[intent.Value];
+        var toolName = intent.Value switch
+        {
+            Intent.Weather => ResolveWeatherToolName(parameters.Value),
+            Intent.Informer => ResolveInformerToolName(parameters.Value),
+            _ => ToolNames[intent.Value]
+        };
 
         _logger.LogInformation(
             "Parameters extracted for tool {ToolName} from query {Query}: {Parameters}",
@@ -108,4 +111,10 @@ public class QueryController : ControllerBase
             _ => "get_daily_weather_forecast"
         };
     }
+
+    /// <summary>Informer intent resolves to one of two tool calls depending on which
+    /// extraction branch fired: location+radius mode (has a "latitude" parameter) calls the
+    /// new list tool; free-text search mode calls the original single-informer tool.</summary>
+    private static string ResolveInformerToolName(System.Text.Json.JsonElement parameters) =>
+        parameters.TryGetProperty("latitude", out _) ? "get_informers_near_location" : "get_informer_status";
 }

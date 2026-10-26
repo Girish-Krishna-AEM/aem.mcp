@@ -235,6 +235,50 @@ public class CoordinatorIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Query_InformerNearLocation_ResolvesListToolAndReturnsCountsOnlySummary()
+    {
+        _fakeMcpHandler!.NextResponse = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                result = new
+                {
+                    informers = new[]
+                    {
+                        new { informId = 2049, informName = "QA Informer 6", custName = "AACS Lakeside High School Campus", macAddress = "00:40:9D:D4:D1:F8", isDisabled = false, distanceMiles = 1.2, alertCount = 2, siteCount = 1 }
+                    },
+                    truncated = false,
+                    totalMatchesInRadius = 1
+                }
+            })
+        };
+
+        // Uses the coordinate-bypass phrasing so this test doesn't depend on a geocoder stub entry.
+        var response = await _client!.PostAsJsonAsync("/query", new
+        {
+            query = "Find informers near latitude 30.3085, longitude -82.2741 within 50 miles"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("get_informers_near_location", body.GetProperty("toolName").GetString());
+        Assert.Contains("Found 1 informer(s)", body.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task Query_InformerNearLocationRadiusExceedsCap_ReturnsBadRequest()
+    {
+        var response = await _client!.PostAsJsonAsync("/query", new
+        {
+            query = "Find informers near latitude 30.3085, longitude -82.2741 within 150 miles"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("exceeds the maximum allowed radius", body.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task Query_MissingLocation_ReturnsBadRequest()
     {
         var response = await _client!.PostAsJsonAsync("/query", new { query = "Is there lightning?" });

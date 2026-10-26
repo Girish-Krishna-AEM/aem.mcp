@@ -25,7 +25,9 @@ public static class ResultFormatter
                 Intent.Strike => BuildStrikeSummary(result),
                 Intent.Weather => BuildWeatherSummary(result),
                 Intent.Sensor => BuildSensorSummary(result),
-                Intent.Informer => BuildInformerSummary(result),
+                Intent.Informer => result.TryGetProperty("informers", out _)
+                    ? BuildInformerListSummary(result)
+                    : BuildInformerSummary(result),
                 _ => "Request completed."
             };
         }
@@ -129,6 +131,33 @@ public static class ResultFormatter
             .Select(c => $"{c.GetProperty("informName").GetString()} ({c.GetProperty("custName").GetString()}, {c.GetProperty("macAddress").GetString()})");
 
         return $"Multiple informers match that search. Did you mean: {string.Join("; ", candidates)}? Please refine your search (e.g. by MAC address or informer ID).";
+    }
+
+    private static string BuildInformerListSummary(JsonElement result)
+    {
+        var informers = result.GetProperty("informers").EnumerateArray().ToList();
+        if (informers.Count == 0)
+        {
+            return "No informers found within the requested radius.";
+        }
+
+        var disabledCount = informers.Count(i => i.GetProperty("isDisabled").GetBoolean());
+        var totalAlerts = informers.Sum(i => i.GetProperty("alertCount").GetInt32());
+        var totalSites = informers.Sum(i => i.GetProperty("siteCount").GetInt32());
+        var truncated = result.GetProperty("truncated").GetBoolean();
+        var totalMatchesInRadius = result.GetProperty("totalMatchesInRadius").GetInt32();
+
+        var summary = $"Found {informers.Count} informer(s) within the requested radius: {totalAlerts} alert(s) total across {totalSites} site(s).";
+        if (disabledCount > 0)
+        {
+            summary += $" ({disabledCount} disabled.)";
+        }
+        if (truncated)
+        {
+            summary += $" (Showing nearest {informers.Count} of {totalMatchesInRadius} in radius.)";
+        }
+
+        return summary;
     }
 
     private static string GetMatchInformName(JsonElement result) =>

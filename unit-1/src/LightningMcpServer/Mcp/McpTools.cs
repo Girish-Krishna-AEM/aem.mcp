@@ -103,4 +103,25 @@ public static class McpTools
             EndDateTimeUtc = endDateTimeUtc
         });
     }
+
+    [McpServerTool(Name = "get_informers_near_location"), Description("Find informer alerting devices within a radius (miles or km, max 100 miles) of a geographic location, and get alert/site counts for each (nearest 25 returned if more match). For full per-alert detail on one specific informer, use get_informer_status instead.")]
+    public static async Task<GetInformersNearLocationResponse> GetInformersNearLocation(
+        IInformerStatusModule informerModule,
+        [Description("Latitude of the location")] double latitude,
+        [Description("Longitude of the location")] double longitude,
+        [Description("Search radius")] double radius,
+        [Description("Unit of radius (miles or km)")] string radiusUnit = "miles",
+        [Description("Start of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours.")] long? startDateTimeUtc = null,
+        [Description("End of the alert search window, UTC epoch seconds. Omit both start/end to default to the last 24 hours.")] long? endDateTimeUtc = null)
+    {
+        return await informerModule.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = latitude,
+            Longitude = longitude,
+            Radius = radius,
+            RadiusUnit = radiusUnit,
+            StartDateTimeUtc = startDateTimeUtc,
+            EndDateTimeUtc = endDateTimeUtc
+        });
+    }
 }

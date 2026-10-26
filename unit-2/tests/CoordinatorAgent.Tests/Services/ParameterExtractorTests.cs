@@ -353,4 +353,54 @@ public class ParameterExtractorTests
         Assert.False(success);
         Assert.Contains("search", error);
     }
+
+    [Fact]
+    public async Task ExtractInformerParameters_LocationAndRadiusPhrase_ReturnsLocationModeParameters()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Find informers near Germantown MD within 10 miles", Intent.Informer);
+
+        Assert.True(success, error);
+        Assert.Equal(39.1732, parameters!.Value.GetProperty("latitude").GetDouble(), 4);
+        Assert.Equal(-77.2719, parameters.Value.GetProperty("longitude").GetDouble(), 4);
+        Assert.Equal(10, parameters.Value.GetProperty("radius").GetDouble());
+        Assert.Equal("miles", parameters.Value.GetProperty("radiusUnit").GetString());
+        Assert.False(parameters.Value.TryGetProperty("search", out _));
+    }
+
+    [Fact]
+    public async Task ExtractInformerParameters_LocationAndRadiusWithCoordinates_ResolvesCoordinatesDirectly()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Informers near latitude 30.3085, longitude -82.2741 within 50 miles", Intent.Informer);
+
+        Assert.True(success, error);
+        Assert.Equal(30.3085, parameters!.Value.GetProperty("latitude").GetDouble(), 4);
+        Assert.Equal(-82.2741, parameters.Value.GetProperty("longitude").GetDouble(), 4);
+        Assert.Equal(50, parameters.Value.GetProperty("radius").GetDouble());
+    }
+
+    [Fact]
+    public async Task ExtractInformerParameters_LocationRadiusExceedsCap_ReturnsValidationError()
+    {
+        var (success, parameters, error) = await _extractor.ExtractParameters(
+            "Find informers near Germantown MD within 150 miles", Intent.Informer);
+
+        Assert.False(success);
+        Assert.Null(parameters);
+        Assert.Contains("exceeds the maximum allowed radius", error);
+    }
+
+    [Fact]
+    public async Task ExtractInformerParameters_LocationPhraseWithoutRadius_FallsThroughToFreeTextMode()
+    {
+        // A location phrase alone (no radius phrase) must NOT trigger location mode —
+        // it should fall through to the existing free-text search path unchanged.
+        var (success, parameters, _) = await _extractor.ExtractParameters(
+            "status of the informer near Lakeside", Intent.Informer);
+
+        Assert.True(success);
+        Assert.True(parameters!.Value.TryGetProperty("search", out _));
+        Assert.False(parameters.Value.TryGetProperty("latitude", out _));
+    }
 }

@@ -79,7 +79,7 @@ public class ParameterExtractor : IParameterExtractor
             Intent.Strike => await ExtractStrikeParameters(query),
             Intent.Weather => await ExtractWeatherParameters(query),
             Intent.Sensor => ExtractSensorParameters(query),
-            Intent.Informer => ExtractInformerParameters(query),
+            Intent.Informer => await ExtractInformerParameters(query),
             _ => (false, null, "Unrecognized intent.")
         };
     }
@@ -165,8 +165,13 @@ public class ParameterExtractor : IParameterExtractor
         return (true, SerializeParameters(parameters), null);
     }
 
-    private (bool, JsonElement?, string?) ExtractInformerParameters(string query)
+    private async Task<(bool, JsonElement?, string?)> ExtractInformerParameters(string query)
     {
+        if (LooksLikeLocationMode(query))
+        {
+            return await ExtractInformerLocationParameters(query);
+        }
+
         var searchMatch = InformerSearchPhrasePattern.Match(query);
         var search = searchMatch.Success ? searchMatch.Groups[1].Value.Trim().TrimEnd('?', '.', ',') : null;
 
@@ -186,6 +191,53 @@ public class ParameterExtractor : IParameterExtractor
         var parameters = new
         {
             search,
+            startDateTimeUtc = startDateTime.HasValue
+                ? new DateTimeOffset(startDateTime.Value, TimeSpan.Zero).ToUnixTimeSeconds()
+                : (long?)null,
+            endDateTimeUtc = endDateTime.HasValue
+                ? new DateTimeOffset(endDateTime.Value, TimeSpan.Zero).ToUnixTimeSeconds()
+                : (long?)null
+        };
+
+        return (true, SerializeParameters(parameters), null);
+    }
+
+    // A query is treated as "find informers near a location" only when it has BOTH a
+    // location phrase and a radius phrase — e.g. "informers near Germantown, MD within 10
+    // miles". Either alone (e.g. "status of informer Lakeside") falls through to the
+    // existing free-text search path unchanged.
+    private static bool LooksLikeLocationMode(string query) =>
+        LocationPhrasePattern.IsMatch(query) && RadiusPattern.IsMatch(query);
+
+    private async Task<(bool, JsonElement?, string?)> ExtractInformerLocationParameters(string query)
+    {
+        var (locationFound, latitude, longitude, locationError) = await TryExtractLocation(query);
+        if (!locationFound)
+        {
+            return (false, null, locationError);
+        }
+
+        var (radius, radiusUnit) = TryExtractRadius(query);
+
+        var radiusMiles = radiusUnit == "miles" ? radius : radius * MilesPerKilometer;
+        if (radiusMiles > MaxRadiusMiles)
+        {
+            _logger.LogWarning("Radius {Radius} {RadiusUnit} exceeds the maximum allowed radius", radius, radiusUnit);
+            return (false, null, $"Radius of {radius} {radiusUnit} exceeds the maximum allowed radius of {MaxRadiusMiles} miles.");
+        }
+
+        var (timeWindowSuccess, startDateTime, endDateTime, timeWindowError) = TryExtractTimeWindow(query);
+        if (!timeWindowSuccess)
+        {
+            return (false, null, timeWindowError);
+        }
+
+        var parameters = new
+        {
+            latitude,
+            longitude,
+            radius,
+            radiusUnit,
             startDateTimeUtc = startDateTime.HasValue
                 ? new DateTimeOffset(startDateTime.Value, TimeSpan.Zero).ToUnixTimeSeconds()
                 : (long?)null,

@@ -21,6 +21,7 @@ public class IntentClassifierTests
     [InlineData("What's the calibration status of TX-123?", Intent.Sensor)]
     [InlineData("What is the status of informer-001?", Intent.Informer)]
     [InlineData("Is the horn in zone-a powered on?", Intent.Informer)]
+    [InlineData("Find informers near Germantown, MD within 10 miles", Intent.Informer)]
     public void Classify_ReturnsExpectedIntent(string query, Intent expected)
     {
         var result = _classifier.Classify(query);

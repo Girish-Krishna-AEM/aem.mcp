@@ -174,6 +174,15 @@ public class InformerRecord
 
     [JsonPropertyName("custName")]
     public string CustName { get; set; } = string.Empty;
+
+    [JsonPropertyName("latitude")]
+    public double Latitude { get; set; }
+
+    [JsonPropertyName("longitude")]
+    public double Longitude { get; set; }
+
+    [JsonPropertyName("radius")]
+    public double Radius { get; set; }
 }
 
 public class InformerSearchMatch

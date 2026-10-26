@@ -76,7 +76,7 @@ public class McpServerIntegrationTests : IAsyncLifetime
 
         Assert.True(json.RootElement.TryGetProperty("tools", out var tools));
         var toolArray = tools.EnumerateArray().ToList();
-        Assert.Equal(6, toolArray.Count);
+        Assert.Equal(7, toolArray.Count);
     }
 
     [Fact]
@@ -265,6 +265,38 @@ public class McpServerIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
         Assert.Contains("kind", content);
+    }
+
+    [Fact]
+    public async Task CallInformersNearLocationTool_WithValidInput_ReturnsList()
+    {
+        var payload = new
+        {
+            method = "tools/call",
+            @params = new
+            {
+                name = "get_informers_near_location",
+                arguments = new
+                {
+                    latitude = 30.3085,
+                    longitude = -82.2741,
+                    radius = 50,
+                    radiusUnit = "miles"
+                }
+            }
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp/messages")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json")
+        };
+
+        var response = await _client!.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("totalMatchesInRadius", content);
+        Assert.Contains("informers", content);
     }
 
     [Fact]

@@ -14,7 +14,7 @@ public class IntentClassifier : IIntentClassifier
         (Intent.Strike, new Regex(@"\b(strike|lightning|lx)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
         (Intent.Weather, new Regex(@"\b(forecast|weather|temperature|rain|precipitation)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
         (Intent.Sensor, new Regex(@"\b(sensor|diagnostic|efficiency|calibration)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        (Intent.Informer, new Regex(@"\b(informer|device|status|power|horn|strobe)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        (Intent.Informer, new Regex(@"\b(informers?|device|status|power|horn|strobe)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
     };
 
     private readonly ILogger<IntentClassifier> _logger;

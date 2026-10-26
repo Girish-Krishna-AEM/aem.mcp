@@ -157,4 +157,174 @@ public class InformerStatusModuleTests
 
         Assert.Throws<ArgumentException>(() => module.GetInformerStatus(new GetInformerStatusRequest { Search = "" }));
     }
+
+    private static List<InformerRecord> GeoSampleInformers() => new()
+    {
+        // ~3.5 miles from (0,0)
+        new InformerRecord
+        {
+            CustId = 1, InformId = 1001, MacAddress = "00:00:00:00:00:01",
+            InformName = "Near Informer", PasUserId = "user.1001",
+            IsDisabled = false, CustName = "Near Customer", Latitude = 0.05, Longitude = 0.0
+        },
+        // ~13.8 miles from (0,0)
+        new InformerRecord
+        {
+            CustId = 2, InformId = 1002, MacAddress = "00:00:00:00:00:02",
+            InformName = "Far Informer", PasUserId = "user.1002",
+            IsDisabled = false, CustName = "Far Customer", Latitude = 0.2, Longitude = 0.0
+        },
+        // disabled, in range (~6.9 miles)
+        new InformerRecord
+        {
+            CustId = 3, InformId = 1003, MacAddress = "00:00:00:00:00:03",
+            InformName = "Disabled In Range", PasUserId = "user.1003",
+            IsDisabled = true, CustName = "Disabled Customer", Latitude = 0.1, Longitude = 0.0
+        },
+        // not geocoded — must be excluded even though (0,0) would otherwise be "in range" of itself
+        new InformerRecord
+        {
+            CustId = 4, InformId = 1004, MacAddress = "00:00:00:00:00:04",
+            InformName = "Not Geocoded", PasUserId = "user.1004",
+            IsDisabled = false, CustName = "Ungeocoded Customer", Latitude = 0.0, Longitude = 0.0
+        },
+        // far outside any reasonable test radius
+        new InformerRecord
+        {
+            CustId = 5, InformId = 1005, MacAddress = "00:00:00:00:00:05",
+            InformName = "Way Far Informer", PasUserId = "user.1005",
+            IsDisabled = false, CustName = "Way Far Customer", Latitude = 10.0, Longitude = 10.0
+        }
+    };
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_ExcludesNonGeocodedAndOutOfRadiusRecords()
+    {
+        var module = CreateModule(out _, out var alertsApiMock, GeoSampleInformers());
+        alertsApiMock
+            .Setup(c => c.GetAlertsAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AlertSiteGroup>());
+
+        var response = await module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 0, Longitude = 0, Radius = 20, RadiusUnit = "miles"
+        });
+
+        var ids = response.Informers.Select(i => i.InformId).ToList();
+        Assert.Contains(1001, ids);
+        Assert.Contains(1002, ids);
+        Assert.Contains(1003, ids);
+        Assert.DoesNotContain(1004, ids); // not geocoded, excluded
+        Assert.DoesNotContain(1005, ids); // outside radius
+        Assert.Equal(3, response.TotalMatchesInRadius);
+        Assert.False(response.Truncated);
+    }
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_DisabledInformer_IncludedButNeverCallsAlertsApi()
+    {
+        var module = CreateModule(out _, out var alertsApiMock, GeoSampleInformers());
+        alertsApiMock
+            .Setup(c => c.GetAlertsAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AlertSiteGroup>());
+
+        var response = await module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 0, Longitude = 0, Radius = 20, RadiusUnit = "miles"
+        });
+
+        var disabled = response.Informers.Single(i => i.InformId == 1003);
+        Assert.True(disabled.IsDisabled);
+        Assert.Equal(0, disabled.AlertCount);
+        Assert.Equal(0, disabled.SiteCount);
+        alertsApiMock.Verify(
+            c => c.GetAlertsAsync("user.1003", It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_MoreThan25InRadius_TruncatesToNearest25()
+    {
+        var many = new List<InformerRecord>();
+        for (var i = 1; i <= 30; i++)
+        {
+            many.Add(new InformerRecord
+            {
+                CustId = i, InformId = 2000 + i, MacAddress = $"00:00:00:00:00:{i:D2}",
+                InformName = $"Informer {i}", PasUserId = $"user.{2000 + i}",
+                IsDisabled = false, CustName = "Dense Customer",
+                Latitude = 0.001 * i, Longitude = 0.0 // all well within radius, increasing distance
+            });
+        }
+
+        var module = CreateModule(out _, out var alertsApiMock, many);
+        alertsApiMock
+            .Setup(c => c.GetAlertsAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AlertSiteGroup>());
+
+        var response = await module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 0, Longitude = 0, Radius = 50, RadiusUnit = "miles"
+        });
+
+        Assert.Equal(30, response.TotalMatchesInRadius);
+        Assert.True(response.Truncated);
+        Assert.Equal(25, response.Informers.Count);
+        // nearest 25 (i = 1..25) should be the ones returned
+        Assert.All(response.Informers, m => Assert.True(m.InformId <= 2025));
+    }
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_OneAlertsCallThrows_OtherInformersStillSucceed()
+    {
+        var module = CreateModule(out _, out var alertsApiMock, GeoSampleInformers());
+        alertsApiMock
+            .Setup(c => c.GetAlertsAsync("user.1001", It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AlertsApiException("simulated failure"));
+        alertsApiMock
+            .Setup(c => c.GetAlertsAsync("user.1002", It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AlertSiteGroup>
+            {
+                new() { SiteName = "Site", Alerts = new List<AlertRecord> { new() { Atn = "LX", Message = "m" } } }
+            });
+
+        var response = await module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 0, Longitude = 0, Radius = 20, RadiusUnit = "miles"
+        });
+
+        var failed = response.Informers.Single(i => i.InformId == 1001);
+        Assert.Equal(0, failed.AlertCount);
+        Assert.Equal(0, failed.SiteCount);
+
+        var succeeded = response.Informers.Single(i => i.InformId == 1002);
+        Assert.Equal(1, succeeded.AlertCount);
+        Assert.Equal(1, succeeded.SiteCount);
+    }
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_RadiusOverMax_ThrowsArgumentException()
+    {
+        var module = CreateModule(out _, out _, GeoSampleInformers());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 0, Longitude = 0, Radius = 150, RadiusUnit = "miles"
+        }));
+    }
+
+    [Fact]
+    public async Task GetInformersNearLocationAsync_ZeroInRadius_ReturnsEmptyList()
+    {
+        var module = CreateModule(out _, out _, GeoSampleInformers());
+
+        var response = await module.GetInformersNearLocationAsync(new GetInformersNearLocationRequest
+        {
+            Latitude = 50, Longitude = 50, Radius = 10, RadiusUnit = "miles"
+        });
+
+        Assert.Empty(response.Informers);
+        Assert.Equal(0, response.TotalMatchesInRadius);
+        Assert.False(response.Truncated);
+    }
 }

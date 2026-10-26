@@ -42,3 +42,21 @@ The `get_informer_status` MCP tool name is retained but its entire input/output 
 
 ## BR-14: Error Message Convention
 All non-success outcomes (`Ambiguous`, `NotFound`, `Disabled`) are surfaced as plain-language messages, consistent with FR-4's `{ "error": "<string>" }` single-string convention (BR-10 in `unit-2/functional-design/business-rules.md`) — no raw upstream payloads or error codes exposed to the caller.
+
+## BR-15: Location-Based Informer Search Mode (Addendum: Multi-Informer Location Search)
+A new `get_informers_near_location` MCP tool finds informers within a radius (miles or km) of a given lat/lon, reusing the same cached informer list (BR-2) as the free-text path (BR-3). This is an **additive** tool — BR-13's `get_informer_status` contract is unaffected and remains byte-for-byte unchanged.
+
+## BR-16: Non-Geocoded Informers Excluded from Radius Matching
+Stub data shows only a minority of informer records have real (non-zero) `latitude`/`longitude`; the rest are `(0, 0)`. Records with `latitude == 0 && longitude == 0` are treated as "not geocoded" and excluded from radius matching entirely — otherwise they would spuriously appear "near" any location close to (0,0).
+
+## BR-17: Radius Cap and Nearest-25 Truncation
+The search radius is capped at **100 miles** (mirroring Unit 2's existing Strike-intent cap) — a request above this limit is rejected with a plain-language error, not silently clamped. When more than 25 informers fall within the radius, only the **25 nearest** (by distance) are returned, with `truncated: true` and `totalMatchesInRadius: <N>` surfaced in the response so the caller knows results were limited.
+
+## BR-18: Disabled Informers in Radius Results
+Disabled informers within the search radius are **included** in the result list (flagged `isDisabled: true`, with `distanceMiles` populated), but the Alerts API (BR-8) is **never called** for them — mirroring BR-5's short-circuit for the free-text single-search path.
+
+## BR-19: Location Search Returns Counts Only, Not Alert Detail
+Each entry in the location-search response carries only identifying fields (`informId`, `informName`, `custName`, `macAddress`, `isDisabled`, `distanceMiles`) plus `alertCount`/`siteCount` — **never** the full `AlertSiteGroup`/`AlertRecord` detail that BR-9/BR-10 define for the single-search path. Full alert detail for one specific informer remains available only via the unchanged `get_informer_status` tool.
+
+## BR-20: Partial Alerts-Fetch Failure Does Not Fail the Whole Request
+If an individual informer's Alerts API call fails during the location-search parallel fan-out, that informer is still returned in the result list (`alertCount: 0, siteCount: 0`, with a logged warning) rather than failing the entire request — consistent with BR-12's "zero alerts is not an error" precedent. One informer's transient failure must not hide alert data for the other (up to 24) informers in the same response.

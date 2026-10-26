@@ -49,3 +49,15 @@ The existing `TryExtractTimeWindow` method (already used by Strike queries for "
 - **Disabled**: `"Informer '<name>' is disabled and not operational."`
 - **Ambiguous**: list the candidate informers (name + customer + MAC) so the user can refine their search, mirroring FR-4's `GeocodeOutcome.Ambiguous` summary style.
 - **NotFound**: `"No informer found matching '<search text>'."`
+
+## BR-15: Informer Location-Mode Detection *(Added 2026-10-26, multi-informer location search addendum)*
+A query is treated as "find informers near a location" only when it matches BOTH an existing, intent-agnostic location phrase pattern AND an existing, intent-agnostic radius phrase pattern (both already used by the Strike intent) — e.g. "informers near Germantown, MD within 10 miles". Either alone falls through unchanged to the existing free-text search mode (BR-12). This reuses patterns verbatim rather than adding a new combined regex, minimizing regression risk to the free-text path.
+
+## BR-16: Informer Location-Mode Cap Reuse *(Added 2026-10-26)*
+The location-mode radius cap (100 miles) reuses Unit 2's existing `MaxRadiusMiles`/`MilesPerKilometer` constants (already used by the Strike intent) rather than duplicating them — a request over the cap is rejected with the same plain-language message convention as Strike's cap rejection.
+
+## BR-17: Informer Intent Two-Tool Resolution *(Added 2026-10-26)*
+The Informer intent resolves to one of two tool calls depending on which extraction branch fired: location-mode parameters (presence of a `latitude` field) route to `get_informers_near_location`; free-text search parameters route to the original `get_informer_status`, following the same precedent already established for the Weather intent's `ResolveWeatherToolName`. `McpClient` is unaffected — still exactly one `CallToolAsync` per request; the parallel fan-out across informers happens server-side in Unit 1.
+
+## BR-18: Plural "informer(s)" Classification Fix *(Added 2026-10-26)*
+Discovered during this addendum's testing: the Informer intent's classifier regex only matched the singular word "informer", not "informers" (word-boundary `\b` fails mid-word on a trailing "s"). Natural phrasing like "find informers near X" silently failed to classify at all. Fixed to `\binformers?\b` — a pre-existing gap unrelated to the free-text path's own correctly-plural-aware pattern (`InformerSearchPhrasePattern` already used `informer[s]?`).
